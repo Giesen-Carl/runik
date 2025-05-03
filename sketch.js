@@ -23,7 +23,7 @@ function setup() {
         player: 0
     }
     field[7][7] = {
-        rune: 3,
+        rune: 1,
         player: 1,
     }
 }
@@ -33,7 +33,7 @@ function draw() {
     handleInput();
     handleRender();
 }
-let count = 0;
+
 function handleInput() {
     // Handle Mouse Clicks
     if (mouseIsPressed) {
@@ -57,12 +57,11 @@ function handleInput() {
         // Click option field
         const optionField = selection.options[`${mousePos.x}-${mousePos.y}`];
         if (selection.active && optionField) {
-            field[mousePos.x][mousePos.y].rune = optionField.o[selection.optionsIndex % optionField.o.length];
-            field[mousePos.x][mousePos.y].player = turnplayer;
-            for (const path of optionField.p) {
-                field[path.x][path.y].rune = 0;
-                field[path.x][path.y].player = turnplayer;
-            }
+            const keys = Object.keys(optionField.m);
+            const rune = keys[selection.optionsIndex % keys.length];
+            const move = optionField.m[rune];
+            doMove(move);
+            // Confirm move
             selection.active = false;
             selection.pos.x = -1;
             selection.pos.y = -1;
@@ -92,7 +91,8 @@ function handleRender() {
     // Draw hover Option field
     const hoveredField = selection.options[`${mousePos.x}-${mousePos.y}`];
     if (!isNotEmpty(mousePos) && selection.active && hoveredField) {
-        drawRect(mousePos.x, mousePos.y, 140, getRuneText(hoveredField.o[selection.optionsIndex % hoveredField.o.length]));
+        const keys = Object.keys(hoveredField.m);
+        drawRect(mousePos.x, mousePos.y, 140, getRuneText(keys[selection.optionsIndex % keys.length]));
     }
 }
 
@@ -133,7 +133,7 @@ function mouseWheel(event) {
 
 function getRuneText(rune) {
     let runeText;
-    switch (rune) {
+    switch (parseInt(rune)) {
         case -1: runeText = ''; break;
         case 0: runeText = '.'; break;
         case 1: runeText = 'o'; break;
@@ -199,12 +199,11 @@ function generateOptions(pos) {
 
     addRuneOptions(pos, addOpt);
 
-    validateOptionsAndAppendMoves(options, player);
-
-    return indexOptions(options);
+    return validateOptions(options, player);
 }
 
-function validateOptionsAndAppendMoves(options, player) {
+function validateOptions(options, player) {
+    const indexedOptions = {};
     for (const option of options) {
         for (const rune of option.o) {
             const move = genMove(option.t, rune, player, option.p);
@@ -212,8 +211,11 @@ function validateOptionsAndAppendMoves(options, player) {
                 option.m[rune] = move;
             }
         }
+        if (Object.keys(option.m).length !== 0) {
+            indexedOptions[`${option.t.x}-${option.t.y}`] = option;
+        }
     }
-    console.log(options)
+    return indexedOptions;
 }
 
 function genMove(pos, rune, player, p) {
@@ -322,18 +324,7 @@ function addRuneOptions(pos, addOpt) {
         addOpt(x + 1, y - 3, o, [{ x: x + 1, y: y - 1 }, { x: x + 2, y: y - 2 }]);
         addOpt(x - 1, y + 3, o, [{ x: x - 1, y: y + 1 }, { x: x - 2, y: y + 2 }]);
         addOpt(x + 1, y + 3, o, [{ x: x + 1, y: y + 1 }, { x: x + 2, y: y + 2 }]);
-
-        // addOpt([[x + 1, y + 1], [x + 2, y + 2], [x + 1, y + 3]], o);
     }
-}
-
-
-function indexOptions(arr) {
-    let options = {}
-    for (const elem of arr) {
-        options[`${elem.t.x}-${elem.t.y}`] = elem;
-    }
-    return options;
 }
 
 function addOptions(arr, opt) {
@@ -359,17 +350,6 @@ function addOptions(arr, opt) {
 
 function getOptionAdder(options) {
     return (x, y, o, p) => addOptions(options, { t: { x, y }, o, p, m: {} });
-
-    // return (p, o) => addMove(options, p, o);
-}
-
-function addMove(options, p, o, player) {
-    // check path squares
-    for (const path of p) {
-        if (isNotEmpty({ x: path[0], y: path[1] })) {
-            return;
-        }
-    }
 }
 
 function isNotEmpty(pos) {
@@ -384,8 +364,8 @@ function doMove(move) {
     field[move.pos.x][move.pos.y].rune = move.after.rune;
     field[move.pos.x][move.pos.y].player = move.after.player;
     for (const path of move.path) {
-        field[path[0]][path[1]].rune = 0;
-        field[path[0]][path[1]].player = move.after.player;
+        field[path.x][path.y].rune = 0;
+        field[path.x][path.y].player = move.after.player;
     }
 }
 
@@ -393,8 +373,8 @@ function undoMove(move) {
     field[move.pos.x][move.pos.y].rune = move.before.rune;
     field[move.pos.x][move.pos.y].player = move.before.player;
     for (const path of move.path) {
-        field[path[0]][path[1]].rune = -1;
-        field[path[0]][path[1]].player = -1;
+        field[path.x][path.y].rune = -1;
+        field[path.x][path.y].player = -1;
     }
 }
 
@@ -415,7 +395,7 @@ function isAttacked(player) {
             attackedFields.push(...getAttackedFields({ x, y }, cell.player));
         }
     });
-    return new Set([...attackedFields, ...playerFields]).size !== attackedFields.length + playerFields.length;
+    return new Set([...attackedFields, ...playerFields]).size !== new Set(attackedFields).size + playerFields.length;
 }
 
 function getAttackedFields(pos, player) {
