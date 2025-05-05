@@ -197,26 +197,6 @@ function generateAllOptions() {
     return options;
 }
 
-const exampleValidatedOptions = {
-    '6-8': {
-        '0': {
-            pos: {
-                x: 6,
-                y: 8
-            },
-            path: [],
-            before: {
-                rune: -1,
-                player: -1,
-            },
-            after: {
-                rune: 0,
-                player: 0,
-            }
-        },
-    },
-}
-
 function addMoveToOptions(options, pos, rune, player, path) {
     const posString = `${pos.x}-${pos.y}`;
     if (options[posString] === undefined) {
@@ -262,70 +242,7 @@ function getBlockerFields(pos) {
     return blockerFields;
 }
 
-function generateOptions2(pos) {
-    const x = pos.x;
-    const y = pos.y;
-    const rune = field[x][y].rune;
-    const player = field[x][y].player;
-    const options = [];
-    const addOpt = (x, y, o, p) => {
-        // check target square
-        if (!isEmpty({ x, y })) {
-            return;
-        }
-        // check path squares
-        for (const path of p) {
-            if (!isEmpty(path)) {
-                return;
-            }
-        }
-        // push to array
-        for (const existing of options) {
-            if (existing.t.x === x && existing.t.y === y) {
-                existing.o.push(...o)
-                return;
-            }
-        }
-        options.push({ t: { x, y }, o, p, m: {} });
-    }
-    if (rune === 0) {
-        return {};
-    }
-
-    // Blocker options
-    addOpt(x - 1, y - 1, [0], []);
-    addOpt(x - 1, y, [0], []);
-    addOpt(x - 1, y + 1, [0], []);
-    addOpt(x, y - 1, [0], []);
-    addOpt(x, y, [0], []);
-    addOpt(x, y + 1, [0], []);
-    addOpt(x + 1, y - 1, [0], []);
-    addOpt(x + 1, y, [0], []);
-    addOpt(x + 1, y + 1, [0], []);
-
-    addRuneOptions(pos, addOpt);
-
-    const validatedOptions = validateOptions(options, player);
-    return validatedOptions;
-}
-
-function validateOptions(options, player) {
-    const indexedOptions = {};
-    for (const option of options) {
-        for (const rune of option.o) {
-            const move = genMove(option.t, rune, player, option.p);
-            if (testMove(move)) {
-                option.m[rune] = move;
-            }
-        }
-        if (Object.keys(option.m).length !== 0) {
-            indexedOptions[`${option.t.x}-${option.t.y}`] = option;
-        }
-    }
-    return indexedOptions;
-}
-
-function genMove(pos, rune, player, p) {
+function genMove(pos, rune, player, path) {
     const move = {
         pos: pos,
         before: {
@@ -336,103 +253,9 @@ function genMove(pos, rune, player, p) {
             rune: rune,
             player: player,
         },
-        path: p,
+        path: path,
     };
     return move;
-}
-
-function addRuneOptions(pos, addOpt) {
-    const x = pos.x;
-    const y = pos.y;
-    const rune = field[x][y].rune;
-    // Circle
-    if (rune === 1) {
-        const o = [2, 3, 4, 5];
-        addOpt(x - 1, y - 1, o, []);
-        addOpt(x - 1, y, o, []);
-        addOpt(x - 1, y + 1, o, []);
-        addOpt(x, y - 1, o, []);
-        addOpt(x, y + 1, o, []);
-        addOpt(x + 1, y - 1, o, []);
-        addOpt(x + 1, y, o, []);
-        addOpt(x + 1, y + 1, o, []);
-    }
-
-    // Cross
-    if (rune === 2) {
-        const o = [1, 3, 4, 5];
-        addOpt(x - 1, y, o, []);
-        addOpt(x - 2, y, o, [{ x: x - 1, y: y }]);
-        addOpt(x - 3, y, o, [{ x: x - 1, y: y }, { x: x - 2, y: y }]);
-        addOpt(x + 1, y, o, []);
-        addOpt(x + 2, y, o, [{ x: x + 1, y: y }]);
-        addOpt(x + 3, y, o, [{ x: x + 1, y: y }, { x: x + 2, y: y }]);
-        addOpt(x, y - 1, o, []);
-        addOpt(x, y - 2, o, [{ x: x, y: y - 1 }]);
-        addOpt(x, y - 3, o, [{ x: x, y: y - 1 }, { x: x, y: y - 2 }]);
-        addOpt(x, y + 1, o, []);
-        addOpt(x, y + 2, o, [{ x: x, y: y + 1 }]);
-        addOpt(x, y + 3, o, [{ x: x, y: y + 1 }, { x: x, y: y + 2 }]);
-    }
-
-    // Square
-    if (rune === 3) {
-        const o = [1, 2, 4, 5]
-        addOpt(x - 1, y, o, []);
-        addOpt(x + 1, y, o, []);
-        addOpt(x, y - 1, o, []);
-        addOpt(x, y + 1, o, []);
-        addOpt(x - 2, y, o, [{ x: x - 1, y: y }]);
-        addOpt(x + 2, y, o, [{ x: x + 1, y: y }]);
-        addOpt(x, y - 2, o, [{ x: x, y: y - 1 }]);
-        addOpt(x, y + 2, o, [{ x: x, y: y + 1 }]);
-        addOpt(x - 2, y + 1, o, [{ x: x - 1, y: y }, { x: x - 2, y: y }]);
-        addOpt(x - 2, y - 1, o, [{ x: x - 1, y: y }, { x: x - 2, y: y }]);
-        addOpt(x + 2, y + 1, o, [{ x: x + 1, y: y }, { x: x + 2, y: y }]);
-        addOpt(x + 2, y - 1, o, [{ x: x + 1, y: y }, { x: x + 2, y: y }]);
-        addOpt(x + 1, y - 2, o, [{ x: x, y: y - 1 }, { x: x, y: y - 2 }]);
-        addOpt(x - 1, y - 2, o, [{ x: x, y: y - 1 }, { x: x, y: y - 2 }]);
-        addOpt(x + 1, y + 2, o, [{ x: x, y: y + 1 }, { x: x, y: y + 2 }]);
-        addOpt(x - 1, y + 2, o, [{ x: x, y: y + 1 }, { x: x, y: y + 2 }]);
-    }
-
-    // Triangle
-    if (rune === 4) {
-        const o = [1, 2, 3, 5]
-        addOpt(x - 1, y - 1, o, []);
-        addOpt(x + 1, y - 1, o, []);
-        addOpt(x - 1, y + 1, o, []);
-        addOpt(x + 1, y + 1, o, []);
-        addOpt(x - 2, y - 2, o, [{ x: x - 1, y: y - 1 }]);
-        addOpt(x + 2, y - 2, o, [{ x: x + 1, y: y - 1 }]);
-        addOpt(x - 2, y + 2, o, [{ x: x - 1, y: y + 1 }]);
-        addOpt(x + 2, y + 2, o, [{ x: x + 1, y: y + 1 }]);
-        addOpt(x - 3, y - 3, o, [{ x: x - 1, y: y - 1 }, { x: x - 2, y: y - 2 }]);
-        addOpt(x + 3, y - 3, o, [{ x: x + 1, y: y - 1 }, { x: x + 2, y: y - 2 }]);
-        addOpt(x - 3, y + 3, o, [{ x: x - 1, y: y + 1 }, { x: x - 2, y: y + 2 }]);
-        addOpt(x + 3, y + 3, o, [{ x: x + 1, y: y + 1 }, { x: x + 2, y: y + 2 }]);
-    }
-
-    // Star
-    if (rune === 5) {
-        const o = [1, 2, 3, 4]
-        addOpt(x - 1, y - 1, o, []);
-        addOpt(x + 1, y - 1, o, []);
-        addOpt(x - 1, y + 1, o, []);
-        addOpt(x + 1, y + 1, o, []);
-        addOpt(x - 2, y - 2, o, [{ x: x - 1, y: y - 1 }]);
-        addOpt(x + 2, y - 2, o, [{ x: x + 1, y: y - 1 }]);
-        addOpt(x - 2, y + 2, o, [{ x: x - 1, y: y + 1 }]);
-        addOpt(x + 2, y + 2, o, [{ x: x + 1, y: y + 1 }]);
-        addOpt(x - 3, y - 1, o, [{ x: x - 1, y: y - 1 }, { x: x - 2, y: y - 2 }]);
-        addOpt(x + 3, y - 1, o, [{ x: x + 1, y: y - 1 }, { x: x + 2, y: y - 2 }]);
-        addOpt(x - 3, y + 1, o, [{ x: x - 1, y: y + 1 }, { x: x - 2, y: y + 2 }]);
-        addOpt(x + 3, y + 1, o, [{ x: x + 1, y: y + 1 }, { x: x + 2, y: y + 2 }]);
-        addOpt(x - 1, y - 3, o, [{ x: x - 1, y: y - 1 }, { x: x - 2, y: y - 2 }]);
-        addOpt(x + 1, y - 3, o, [{ x: x + 1, y: y - 1 }, { x: x + 2, y: y - 2 }]);
-        addOpt(x - 1, y + 3, o, [{ x: x - 1, y: y + 1 }, { x: x - 2, y: y + 2 }]);
-        addOpt(x + 1, y + 3, o, [{ x: x + 1, y: y + 1 }, { x: x + 2, y: y + 2 }]);
-    }
 }
 
 function isEmpty(pos) {
