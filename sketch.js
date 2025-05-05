@@ -45,11 +45,15 @@ function handleInput() {
         mouseDown = true;
         const mousePos = getInboundMouse();
         // Click rune field
-        if (isNotEmpty(mousePos)) {
+        if (!isEmpty(mousePos)) {
+            const options = allOptions[turnplayer][`${mousePos.x}-${mousePos.y}`];
             if (selection.active && mousePos.x === selection.pos.x && mousePos.y === selection.pos.y) {
                 selection.active = false;
-            } else if (field[mousePos.x][mousePos.y].player === turnplayer && Object.keys(allOptions[turnplayer]).length > 0) {
-                const options = allOptions[turnplayer][`${mousePos.x}-${mousePos.y}`];
+            } else if (
+                field[mousePos.x][mousePos.y].player === turnplayer &&
+                Object.keys(allOptions[turnplayer]).length > 0 &&
+                options
+            ) {
                 selection.active = true;
                 selection.pos.x = mousePos.x;
                 selection.pos.y = mousePos.y;
@@ -77,22 +81,6 @@ function handleInput() {
     }
 }
 
-function generateAllOptions() {
-    let options = {
-        '0': {},
-        '1': {},
-    }
-    iterateField((field, x, y) => {
-        if (field.player > -1) {
-            const generatedOptions = generateOptions({ x, y });
-            if (Object.keys(generatedOptions).length > 0) {
-                options[field.player][`${x}-${y}`] = generatedOptions;
-            }
-        }
-    });
-    return options;
-}
-
 function handleRender() {
     // Draw all Squares
     iterateField((cell, x, y) => {
@@ -110,7 +98,7 @@ function handleRender() {
     drawRect(mousePos.x, mousePos.y, 140, getRuneText(field[mousePos.x][mousePos.y].rune));
     // Draw hover Option field
     const hoveredField = selection.options[`${mousePos.x}-${mousePos.y}`];
-    if (!isNotEmpty(mousePos) && selection.active && hoveredField) {
+    if (isEmpty(mousePos) && selection.active && hoveredField) {
         const keys = Object.keys(hoveredField.m);
         drawRect(mousePos.x, mousePos.y, 140, getRuneText(keys[selection.optionsIndex % keys.length]));
     }
@@ -183,15 +171,74 @@ function generateField() {
         }
         for (let j = 0; j < rowsAndCols; j++) {
             field[i][j] = {
-                // Players:
-                // -1 - neutral
-                // 0 - Player1
-                // 1 - Player2
                 player: -1,
                 rune: -1,
             }
         }
     }
+}
+
+function generateAllOptions() {
+    let options = {
+        '0': {},
+        '1': {},
+    }
+    iterateField((field, x, y) => {
+        if (field.player > -1) {
+            const generatedOptions = generateOptions({ x, y });
+            if (Object.keys(generatedOptions).length > 0) {
+                options[field.player][`${x}-${y}`] = generatedOptions;
+            }
+        }
+    });
+    return options;
+}
+
+const exampleValidatedOptions = {
+    '6-8': {
+        m: {
+            '0': {
+                pos: {
+                    x: 6,
+                    y: 8
+                },
+                path: [],
+                before: {
+                    rune: -1,
+                    player: -1,
+                },
+                after: {
+                    rune: 0,
+                    player: 0,
+                }
+            }
+        },
+    },
+}
+
+function generateOptions2(pos) {
+    const x = pos.x;
+    const y = pos.y;
+    const rune = field[x][y].rune;
+    const player = field[x][y].player;
+    let options = {};
+    const blockerFields = getBlockerFields(pos);
+    console.log('BLOCKER FIELDS', blockerFields);
+}
+
+function getBlockerFields(pos) {
+    const blockerFields = [];
+    for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+            if (i !== 0 || j !== 0) {
+                const targetPos = { x: pos.x + i, y: pos.y + j };
+                if (isEmpty(targetPos)) {
+                    blockerFields.push(targetPos);
+                }
+            }
+        }
+    }
+    return blockerFields;
 }
 
 function generateOptions(pos) {
@@ -200,8 +247,26 @@ function generateOptions(pos) {
     const rune = field[x][y].rune;
     const player = field[x][y].player;
     const options = [];
-    const addOpt = getOptionAdder(options);
-    // Blocker
+    const addOpt = (x, y, o, p) => {
+        // check target square
+        if (!isEmpty({ x, y })) {
+            return;
+        }
+        // check path squares
+        for (const path of p) {
+            if (!isEmpty(path)) {
+                return;
+            }
+        }
+        // push to array
+        for (const existing of options) {
+            if (existing.t.x === x && existing.t.y === y) {
+                existing.o.push(...o)
+                return;
+            }
+        }
+        options.push({ t: { x, y }, o, p, m: {} });
+    }
     if (rune === 0) {
         return {};
     }
@@ -219,7 +284,9 @@ function generateOptions(pos) {
 
     addRuneOptions(pos, addOpt);
 
-    return validateOptions(options, player);
+    const validatedOptions = validateOptions(options, player);
+    console.log('VALIDATED OPTIONS', validatedOptions)
+    return validatedOptions;
 }
 
 function validateOptions(options, player) {
@@ -239,7 +306,7 @@ function validateOptions(options, player) {
 }
 
 function genMove(pos, rune, player, p) {
-    return {
+    const move = {
         pos: pos,
         before: {
             rune: field[pos.x][pos.y].rune,
@@ -250,7 +317,9 @@ function genMove(pos, rune, player, p) {
             player: player,
         },
         path: p,
-    }
+    };
+    // return testMove(move) ? [move] : [];
+    return move;
 }
 
 function addRuneOptions(pos, addOpt) {
@@ -347,33 +416,8 @@ function addRuneOptions(pos, addOpt) {
     }
 }
 
-function addOptions(arr, opt) {
-    // check target square
-    if (isNotEmpty(opt.t)) {
-        return;
-    }
-    // check path squares
-    for (const path of opt.p) {
-        if (isNotEmpty(path)) {
-            return;
-        }
-    }
-    // push to array
-    for (const existing of arr) {
-        if (existing.t.x === opt.t.x && existing.t.y === opt.t.y) {
-            existing.o.push(...opt.o)
-            return;
-        }
-    }
-    arr.push(opt);
-}
-
-function getOptionAdder(options) {
-    return (x, y, o, p) => addOptions(options, { t: { x, y }, o, p, m: {} });
-}
-
-function isNotEmpty(pos) {
-    return pos.x < 0 || pos.x >= rowsAndCols || pos.y < 0 || pos.y >= rowsAndCols || field[pos.x][pos.y].rune !== -1;
+function isEmpty(pos) {
+    return !(pos.x < 0 || pos.x >= rowsAndCols || pos.y < 0 || pos.y >= rowsAndCols || field[pos.x][pos.y].rune !== -1);
 }
 
 function isPlaceable(pos, player) {
@@ -424,24 +468,130 @@ function isAttacked(player) {
     return new Set([...attackedFields, ...playerFields]).size !== new Set(attackedFields).size + playerFields.length;
 }
 
-function getAttackedFields(pos, player) {
-    const options = [];
-    const addOpt = (x, y, o, p) => {
-        const opt = { t: { x, y }, o, p };
-        // check target square
-        if (!isPlaceable(opt.t, player)) {
-            return;
-        }
-        // check path squares
-        for (const path of opt.p) {
-            if (isNotEmpty(path)) {
-                return;
+function processPath(posArr, player) {
+    const mappedPosArr = posArr.map(pos => { return { x: pos[0], y: pos[1] } });
+    if (posArr.length === 0) {
+        return [];
+    }
+    const lastPos = mappedPosArr[mappedPosArr.length - 1]
+    if (!isPlaceable(lastPos, player)) {
+        return [];
+    }
+    if (mappedPosArr.length > 1) {
+        for (const pos of mappedPosArr.slice(0, -1)) {
+            if (!isEmpty(pos)) {
+                return [];
             }
         }
-        options.push(`${x}-${y}`);
     }
-    addRuneOptions(pos, addOpt);
-    return options;
+    return [`${lastPos.x}-${lastPos.y}`];
+}
+
+function processPaths(paths, player) {
+    const positions = [];
+    for (const path of paths) {
+        const mappedPath = path.map(pos => { return { x: pos[0], y: pos[1] } });
+        const lastPos = mappedPath[mappedPath.length - 1]
+        if (
+            mappedPath.length === 0 ||
+            !isPlaceable(lastPos, player) ||
+            mappedPath.length > 1 && mappedPath.slice(0, -1).some(pos => !isEmpty(pos))
+        ) {
+            continue;
+        }
+        positions.push(`${lastPos.x}-${lastPos.y}`);
+    }
+    return positions;
+}
+
+function getAttackedFields(pos) {
+    const x = pos.x;
+    const y = pos.y;
+    const rune = field[x][y].rune;
+    const player = field[x][y].player;
+    const attackedFields = [];
+    switch (rune) {
+        case 1: attackedFields.push(...processPaths([
+            [[x - 1, y - 1]],
+            [[x - 1, y]],
+            [[x - 1, y + 1]],
+            [[x, y - 1]],
+            [[x, y + 1]],
+            [[x + 1, y - 1]],
+            [[x + 1, y]],
+            [[x + 1, y + 1]],
+        ], player));
+            break;
+        case 2: attackedFields.push(...processPaths([
+            [[x - 1, y]],
+            [[x - 1, y], [x - 2, y]],
+            [[x - 1, y], [x - 2, y], [x - 3, y]],
+            [[x + 1, y]],
+            [[x + 1, y], [x + 2, y]],
+            [[x + 1, y], [x + 2, y], [x + 3, y]],
+            [[x, y - 1]],
+            [[x, y - 1], [x, y - 2]],
+            [[x, y - 1], [x, y - 2], [x, y - 3]],
+            [[x, y + 1]],
+            [[x, y + 1], [x, y + 2]],
+            [[x, y + 1], [x, y + 2], [x, y + 3]],
+        ], player));
+            break;
+        case 3: attackedFields.push(...processPaths([
+            [[x - 1, y]],
+            [[x + 1, y]],
+            [[x, y - 1]],
+            [[x, y + 1]],
+            [[x - 1, y], [x - 2, y]],
+            [[x + 1, y], [x + 2, y]],
+            [[x, y - 1], [x, y - 2]],
+            [[x, y + 1], [x, y + 2]],
+            [[x - 1, y], [x - 2, y], [x - 2, y + 1]],
+            [[x + 1, y], [x + 2, y], [x + 2, y + 1]],
+            [[x, y - 1], [x, y - 2], [x + 1, y - 2]],
+            [[x, y + 1], [x, y + 2], [x + 1, y + 2]],
+            [[x - 1, y], [x - 2, y], [x - 2, y - 1]],
+            [[x + 1, y], [x + 2, y], [x + 2, y - 1]],
+            [[x, y - 1], [x, y - 2], [x - 1, y - 2]],
+            [[x, y + 1], [x, y + 2], [x - 1, y + 2]],
+        ], player));
+            break;
+        case 4: attackedFields.push(...processPaths([
+            [[x - 1, y - 1]],
+            [[x + 1, y - 1]],
+            [[x - 1, y + 1]],
+            [[x + 1, y + 1]],
+            [[x - 1, y - 1], [x - 2, y - 2]],
+            [[x + 1, y - 1], [x + 2, y - 2]],
+            [[x - 1, y + 1], [x - 2, y + 2]],
+            [[x + 1, y + 1], [x + 2, y + 2]],
+            [[x - 1, y - 1], [x - 2, y - 2], [x - 3, y - 3]],
+            [[x + 1, y - 1], [x + 2, y - 2], [x + 3, y - 3]],
+            [[x - 1, y + 1], [x - 2, y + 2], [x - 3, y + 3]],
+            [[x + 1, y + 1], [x + 2, y + 2], [x + 3, y + 3]],
+        ], player));
+            break;
+        case 5: attackedFields.push(...processPaths([
+            [[x - 1, y - 1]],
+            [[x + 1, y - 1]],
+            [[x - 1, y + 1]],
+            [[x + 1, y + 1]],
+            [[x - 1, y - 1], [x - 2, y - 2]],
+            [[x + 1, y - 1], [x + 2, y - 2]],
+            [[x - 1, y + 1], [x - 2, y + 2]],
+            [[x + 1, y + 1], [x + 2, y + 2]],
+            [[x - 1, y - 1], [x - 2, y - 2], [x - 3, y - 1]],
+            [[x + 1, y - 1], [x + 2, y - 2], [x + 3, y - 1]],
+            [[x - 1, y + 1], [x - 2, y + 2], [x - 3, y + 1]],
+            [[x + 1, y + 1], [x + 2, y + 2], [x + 3, y + 1]],
+            [[x - 1, y - 1], [x - 2, y - 2], [x - 1, y - 3]],
+            [[x + 1, y - 1], [x + 2, y - 2], [x + 1, y - 3]],
+            [[x - 1, y + 1], [x - 2, y + 2], [x - 1, y + 3]],
+            [[x + 1, y + 1], [x + 2, y + 2], [x + 1, y + 3]],
+        ], player));
+            break;
+    };
+    return attackedFields;
 }
 
 function iterateField(doStuff) {
