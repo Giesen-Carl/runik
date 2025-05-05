@@ -47,11 +47,14 @@ function handleInput() {
             if (selection.active && mousePos.x === selection.pos.x && mousePos.y === selection.pos.y) {
                 selection.active = false;
             } else if (field[mousePos.x][mousePos.y].player === turnplayer) {
-                selection.active = true;
-                selection.pos.x = mousePos.x;
-                selection.pos.y = mousePos.y;
-                // Generate Options
-                selection.options = generateOptions(mousePos);
+                const options = generateOptions(mousePos);
+                if (Object.keys(options).length > 0) {
+                    selection.active = true;
+                    selection.pos.x = mousePos.x;
+                    selection.pos.y = mousePos.y;
+                    // Generate Options
+                    selection.options = options;
+                }
             }
         }
         // Click option field
