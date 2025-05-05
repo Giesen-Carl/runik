@@ -13,6 +13,7 @@ let selection = {
     options: {}
 }
 let mouseDown = false;
+let allOptions;
 
 function setup() {
     createCanvas(size, size);
@@ -26,6 +27,7 @@ function setup() {
         rune: 1,
         player: 1,
     }
+    allOptions = generateAllOptions();
 }
 
 function draw() {
@@ -46,15 +48,14 @@ function handleInput() {
         if (isNotEmpty(mousePos)) {
             if (selection.active && mousePos.x === selection.pos.x && mousePos.y === selection.pos.y) {
                 selection.active = false;
-            } else if (field[mousePos.x][mousePos.y].player === turnplayer) {
-                const options = generateOptions(mousePos);
-                if (Object.keys(options).length > 0) {
-                    selection.active = true;
-                    selection.pos.x = mousePos.x;
-                    selection.pos.y = mousePos.y;
-                    // Generate Options
-                    selection.options = options;
-                }
+            } else if (field[mousePos.x][mousePos.y].player === turnplayer && Object.keys(allOptions[turnplayer]).length > 0) {
+                const options = allOptions[turnplayer][`${mousePos.x}-${mousePos.y}`];
+                selection.active = true;
+                selection.pos.x = mousePos.x;
+                selection.pos.y = mousePos.y;
+                // Generate Options
+                selection.options = options;
+
             }
         }
         // Click option field
@@ -74,6 +75,22 @@ function handleInput() {
     } else {
         mouseDown = false;
     }
+}
+
+function generateAllOptions() {
+    let options = {
+        '0': {},
+        '1': {},
+    }
+    iterateField((field, x, y) => {
+        if (field.player > -1) {
+            const generatedOptions = generateOptions({ x, y });
+            if (Object.keys(generatedOptions).length > 0) {
+                options[field.player][`${x}-${y}`] = generatedOptions;
+            }
+        }
+    });
+    return options;
 }
 
 function handleRender() {
@@ -363,28 +380,34 @@ function isPlaceable(pos, player) {
     return pos.x >= 0 && pos.x < rowsAndCols && pos.y >= 0 && pos.y < rowsAndCols && field[pos.x][pos.y].rune !== 0 && field[pos.x][pos.y].player !== player;
 }
 
-function doMove(move) {
+function doMove(move, updateOptions = true) {
     field[move.pos.x][move.pos.y].rune = move.after.rune;
     field[move.pos.x][move.pos.y].player = move.after.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = 0;
         field[path.x][path.y].player = move.after.player;
     }
+    if (updateOptions) {
+        allOptions = generateAllOptions();
+    }
 }
 
-function undoMove(move) {
+function undoMove(move, updateOptions = true) {
     field[move.pos.x][move.pos.y].rune = move.before.rune;
     field[move.pos.x][move.pos.y].player = move.before.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = -1;
         field[path.x][path.y].player = -1;
     }
+    if (updateOptions) {
+        allOptions = generateAllOptions();
+    }
 }
 
 function testMove(move) {
-    doMove(move);
+    doMove(move, false);
     const valid = !isAttacked(move.after.player);
-    undoMove(move);
+    undoMove(move, false);
     return valid;
 }
 
