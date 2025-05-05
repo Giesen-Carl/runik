@@ -10,7 +10,7 @@ let selection = {
         y: -1,
     },
     optionsIndex: 1000,
-    options: {}
+    options: []
 }
 let mouseDown = false;
 let allOptions;
@@ -46,7 +46,7 @@ function handleInput() {
         const mousePos = getInboundMouse();
         // Click rune field
         if (!isEmpty(mousePos)) {
-            const options = allOptions[turnplayer][`${mousePos.x}-${mousePos.y}`];
+            const options = allOptions[turnplayer].find(o => o.after.pos.x === mousePos.x && o.pos.y === mousePos.y);
             if (selection.active && mousePos.x === selection.pos.x && mousePos.y === selection.pos.y) {
                 selection.active = false;
             } else if (
@@ -63,7 +63,7 @@ function handleInput() {
             }
         }
         // Click option field
-        const optionField = selection.options[`${mousePos.x}-${mousePos.y}`];
+        const optionField = selection.options.find(o => o.pos.x === mousePos.x && o.pos.y === mouseDown.pos.y)
         if (selection.active && optionField) {
             const keys = Object.keys(optionField);
             const rune = keys[selection.optionsIndex % keys.length];
@@ -183,14 +183,15 @@ function generateField() {
 
 function generateAllOptions() {
     let options = {
-        '0': {},
-        '1': {},
+        '0': [],
+        '1': [],
     }
     iterateField((field, x, y) => {
         if (field.player > -1) {
             const generatedOptions = generateOptions({ x, y });
-            if (Object.keys(generatedOptions).length > 0) {
-                options[field.player][`${x}-${y}`] = generatedOptions;
+            console.log(generatedOptions)
+            if (generatedOptions.length > 0) {
+                options[field.player] = generatedOptions;
             }
         }
     });
@@ -198,13 +199,9 @@ function generateAllOptions() {
 }
 
 function addMoveToOptions(options, pos, rune, player, path) {
-    const posString = `${pos.x}-${pos.y}`;
-    if (options[posString] === undefined) {
-        options[posString] = {};
-    }
     const move = genMove(pos, rune, player, path);
     if (testMove(move)) {
-        options[posString][rune] = move;
+        options.push(move);
     }
 }
 
@@ -214,7 +211,7 @@ function generateOptions(pos) {
     const rune = field[x][y].rune;
     const player = field[x][y].player;
     const placeableRunes = [1, 2, 3, 4, 5].filter(r => r !== rune);
-    let options = {};
+    let options = [];
     // Return {} if Rune is Blocker
     if (rune <= 0) {
         return {};
