@@ -240,29 +240,25 @@ function getAttackedFields(pos) {
     const y = pos.y;
     const rune = game.field[x][y].rune;
     const player = game.field[x][y].player;
+    const attackedFields = [];
     const processPaths = (paths) => {
-        const positions = [];
         for (const path of paths) {
             const mappedPath = path.map(pos => { return { x: x + pos[0], y: y + pos[1] } });
-            const lastPos = mappedPath[mappedPath.length - 1];
-            const behindPath = mappedPath.slice(0, -1);
-            if (
-                mappedPath.length === 0 ||
-                !isPlaceable(lastPos, player) ||
-                mappedPath.length > 1 && behindPath.some(pos => !isEmpty(pos))
-            ) {
-                continue;
+            for (let i = 0; i < path.length; i++) {
+                const subpath = i === 0 ? mappedPath : mappedPath.slice(0, -i);
+                const lastPos = subpath[subpath.length - 1];
+                const behindPath = subpath.slice(0, -1);
+                if (isPlaceable(lastPos, player) && behindPath.every(pos => isEmpty(pos))) {
+                    attackedFields.push({
+                        pos: lastPos,
+                        paths: behindPath
+                    });
+                }
             }
-            positions.push({
-                pos: lastPos,
-                paths: behindPath
-            });
         }
-        return positions;
     }
-    const attackedFields = [];
     switch (rune) {
-        case 1: attackedFields.push(...processPaths([
+        case 1: processPaths([
             [[-1, -1]],
             [[-1, 0]],
             [[-1, 1]],
@@ -271,75 +267,43 @@ function getAttackedFields(pos) {
             [[1, -1]],
             [[1, 0]],
             [[1, 1]],
-        ]));
+        ]);
             break;
-        case 2: attackedFields.push(...processPaths([
-            [[-1, 0]],
-            [[-1, 0], [-2, 0]],
+        case 2: processPaths([
             [[-1, 0], [-2, 0], [-3, 0]],
-            [[1, 0]],
-            [[1, 0], [2, 0]],
-            [[1, 0], [2, 0], [3, 0]],
-            [[0, -1]],
-            [[0, -1], [0, -2]],
             [[0, -1], [0, -2], [0, -3]],
-            [[0, 1]],
-            [[0, 1], [0, 2]],
+            [[1, 0], [2, 0], [3, 0]],
             [[0, 1], [0, 2], [0, 3]],
-        ]));
+        ]);
             break;
-        case 3: attackedFields.push(...processPaths([
-            [[-1, 0]],
-            [[1, 0]],
-            [[0, -1]],
-            [[0, 1]],
-            [[-1, 0], [-2, 0]],
-            [[1, 0], [2, 0]],
-            [[0, -1], [0, -2]],
-            [[0, 1], [0, 2]],
-            [[-1, 0], [-2, 0], [-2, 1]],
-            [[1, 0], [2, 0], [2, 1]],
-            [[0, -1], [0, -2], [1, -2]],
-            [[0, 1], [0, 2], [1, 2]],
-            [[-1, 0], [-2, 0], [-2, -1]],
+        case 3: processPaths([
             [[1, 0], [2, 0], [2, -1]],
-            [[0, -1], [0, -2], [-1, -2]],
+            [[1, 0], [2, 0], [2, 1]],
             [[0, 1], [0, 2], [-1, 2]],
-        ]));
+            [[0, 1], [0, 2], [1, 2]],
+            [[-1, 0], [-2, 0], [-2, 1]],
+            [[-1, 0], [-2, 0], [-2, -1]],
+            [[0, -1], [0, -2], [1, -2]],
+            [[0, -1], [0, -2], [-1, -2]],
+        ]);
             break;
-        case 4: attackedFields.push(...processPaths([
-            [[-1, -1]],
-            [[1, -1]],
-            [[-1, 1]],
-            [[1, 1]],
-            [[-1, -1], [-2, -2]],
-            [[1, -1], [2, -2]],
-            [[-1, 1], [-2, 2]],
-            [[1, 1], [2, 2]],
+        case 4: processPaths([
             [[-1, -1], [-2, -2], [-3, -3]],
-            [[1, -1], [2, -2], [3, -3]],
             [[-1, 1], [-2, 2], [-3, 3]],
+            [[1, -1], [2, -2], [3, -3]],
             [[1, 1], [2, 2], [3, 3]],
-        ]));
+        ]);
             break;
-        case 5: attackedFields.push(...processPaths([
-            [[-1, -1]],
-            [[1, -1]],
-            [[-1, 1]],
-            [[1, 1]],
-            [[-1, -1], [-2, -2]],
-            [[1, -1], [2, -2]],
-            [[-1, 1], [-2, 2]],
-            [[1, 1], [2, 2]],
+        case 5: processPaths([
             [[-1, -1], [-2, -2], [-3, -1]],
-            [[1, -1], [2, -2], [3, -1]],
-            [[-1, 1], [-2, 2], [-3, 1]],
-            [[1, 1], [2, 2], [3, 1]],
             [[-1, -1], [-2, -2], [-1, -3]],
+            [[1, -1], [2, -2], [3, -1]],
             [[1, -1], [2, -2], [1, -3]],
+            [[-1, 1], [-2, 2], [-3, 1]],
             [[-1, 1], [-2, 2], [-1, 3]],
+            [[1, 1], [2, 2], [3, 1]],
             [[1, 1], [2, 2], [1, 3]],
-        ]));
+        ]);
             break;
     };
     return attackedFields;
