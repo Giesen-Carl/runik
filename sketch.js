@@ -154,6 +154,9 @@ function getRuneText(rune) {
 
 function getPlayerColor(player) {
     let color;
+    if (player > -1 && allOptions[player].length === 0) {
+        return 'red';
+    }
     switch (player) {
         case -1: color = 120; break;
         case 0: color = 'blue'; break;
@@ -206,7 +209,7 @@ function generateOptions(pos) {
     let options = [];
     // Return {} if Rune is Blocker
     if (rune <= 0) {
-        return {};
+        return [];
     }
     // Add Blocker Options
     const blockerFields = getBlockerFields(pos);
