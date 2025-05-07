@@ -14,6 +14,7 @@ let selection = {
 }
 let mouseDown = false;
 let allOptions;
+const moveStack = []
 
 function setup() {
     createCanvas(size, size);
@@ -43,37 +44,48 @@ function handleInput() {
             return;
         }
         mouseDown = true;
-        const mousePos = getInboundMouse();
-        // Click rune field
-        if (!isEmpty(mousePos)) {
-            const options = allOptions[turnplayer].filter(move => compPos(mousePos, move.sourcePos));
-            if (selection.active && compPos(mousePos, selection.pos)) {
-                selection.active = false;
-            } else if (
-                field[mousePos.x][mousePos.y].player === turnplayer &&
-                allOptions[turnplayer].length > 0 &&
-                options.length > 0
-            ) {
-                selection.active = true;
-                selection.pos.x = mousePos.x;
-                selection.pos.y = mousePos.y;
-                // Generate Options
-                selection.options = options;
+        if (mouseButton === 'left') {
+            const mousePos = getInboundMouse();
+            // Click rune field
+            if (!isEmpty(mousePos)) {
+                const options = allOptions[turnplayer].filter(move => compPos(mousePos, move.sourcePos));
+                if (selection.active && compPos(mousePos, selection.pos)) {
+                    selection.active = false;
+                } else if (
+                    field[mousePos.x][mousePos.y].player === turnplayer &&
+                    allOptions[turnplayer].length > 0 &&
+                    options.length > 0
+                ) {
+                    selection.active = true;
+                    selection.pos.x = mousePos.x;
+                    selection.pos.y = mousePos.y;
+                    // Generate Options
+                    selection.options = options;
+                }
             }
-        }
-        // Click option field
-        const moveOptions =
-            selection.active ? allOptions[turnplayer]
-                .filter(move => compPos(selection.pos, move.sourcePos))
-                .filter(move => compPos(mousePos, move.targetPos))
-                : [];
-        if (moveOptions.length > 0) {
-            doMove(moveOptions[selection.optionsIndex % moveOptions.length]);
+            // Click option field
+            const moveOptions =
+                selection.active ? allOptions[turnplayer]
+                    .filter(move => compPos(selection.pos, move.sourcePos))
+                    .filter(move => compPos(mousePos, move.targetPos))
+                    : [];
+            if (moveOptions.length > 0) {
+                const move = moveOptions[selection.optionsIndex % moveOptions.length]
+                doMove(move);
+                moveStack.push(move);
+                // Confirm move
+                selection.active = false;
+                selection.pos.x = -1;
+                selection.pos.y = -1;
+                turnplayer = turnplayer === 1 ? 0 : 1;
+            }
+        } else if (mouseButton === 'center' && moveStack.length > 0) {
+            const move = moveStack.pop();
+            undoMove(move);
             // Confirm move
             selection.active = false;
             selection.pos.x = -1;
             selection.pos.y = -1;
-            selection.options = {};
             turnplayer = turnplayer === 1 ? 0 : 1;
         }
     } else {
