@@ -10,7 +10,6 @@ let selection = {
         y: -1,
     },
     optionsIndex: 1000,
-    options: []
 }
 let mouseDown = false;
 let allOptions;
@@ -53,14 +52,10 @@ function handleInput() {
                     selection.active = false;
                 } else if (
                     field[mousePos.x][mousePos.y].player === turnplayer &&
-                    allOptions[turnplayer].length > 0 &&
                     options.length > 0
                 ) {
                     selection.active = true;
-                    selection.pos.x = mousePos.x;
-                    selection.pos.y = mousePos.y;
-                    // Generate Options
-                    selection.options = options;
+                    selection.pos = mousePos;
                 }
             }
             // Click option field
