@@ -89,14 +89,20 @@ function handleInput() {
     }
 }
 
-function compPos(pos1, pos2) {
-    return pos1.x === pos2.x && pos1.y === pos2.y;
-}
-
 function handleRender() {
     // Draw all Squares
     iterateField((cell, pos) => {
-        drawRect(pos, getPlayerColor(cell.player), cell.rune)
+        let color;
+        if (cell.player > -1 && game.moves[cell.player].length === 0) {
+            color = 'red';
+        } else {
+            switch (cell.player) {
+                case -1: color = 120; break;
+                case 0: color = 'blue'; break;
+                case 1: color = 'green'; break;
+            }
+        }
+        drawRect(pos, color, cell.rune)
     });
     if (game.selection.active) {
         const moveOptions = game.moves[game.turnplayer].filter(move => compPos(game.selection.pos, move.sourcePos));
@@ -109,15 +115,6 @@ function handleRender() {
             drawRect(mousePos, 140, optionPlateMoves[game.selection.optionsIndex % optionPlateMoves.length].after.rune);
         }
     }
-}
-
-function getInboundMouse() {
-    if (mouseX < 0 || mouseX >= game.size || mouseY < 0 || mouseY >= game.size) {
-        return { x: 0, y: 0 };
-    }
-    const x = Math.floor(mouseX * game.rowsAndCols / game.size);
-    const y = Math.floor(mouseY * game.rowsAndCols / game.size);
-    return { x, y }
 }
 
 function drawRect(pos, color, rune) {
@@ -134,22 +131,6 @@ function drawRect(pos, color, rune) {
     fill(0);
     strokeWeight(0);
     textSize(rectSize / textRatio);
-    text(getRuneText(rune), (xPos + 0.5 - 0.5 / textRatio) * rectSize, (yPos + 0.5 + 0.5 / textRatio) * rectSize);
-}
-
-// Gets Called automatically
-function mouseWheel(event) {
-    if (event.delta < 0) {
-        game.selection.optionsIndex++;
-    } else {
-        game.selection.optionsIndex--;
-        if (game.selection.optionsIndex < 0) {
-            game.selection.optionsIndex = 1000;
-        }
-    }
-}
-
-function getRuneText(rune) {
     let runeText;
     switch (parseInt(rune)) {
         case -1: runeText = ''; break;
@@ -160,34 +141,7 @@ function getRuneText(rune) {
         case 4: runeText = '^'; break;
         case 5: runeText = '*'; break;
     }
-    return runeText;
-}
-
-function getPlayerColor(player) {
-    let color;
-    if (player > -1 && game.moves[player].length === 0) {
-        return 'red';
-    }
-    switch (player) {
-        case -1: color = 120; break;
-        case 0: color = 'blue'; break;
-        case 1: color = 'green'; break;
-    }
-    return color;
-}
-
-function generateField() {
-    for (let i = 0; i < game.rowsAndCols; i++) {
-        if (game.field[i] === undefined) {
-            game.field[i] = [];
-        }
-        for (let j = 0; j < game.rowsAndCols; j++) {
-            game.field[i][j] = {
-                player: -1,
-                rune: -1,
-            }
-        }
-    }
+    text(runeText, (xPos + 0.5 - 0.5 / textRatio) * rectSize, (yPos + 0.5 + 0.5 / textRatio) * rectSize);
 }
 
 function generateMoves() {
@@ -241,14 +195,6 @@ function genMove(sourcePos, targetPos, rune, player, path) {
     return move;
 }
 
-function isEmpty(pos) {
-    return pos.x >= 0 && pos.x < game.rowsAndCols && pos.y >= 0 && pos.y < game.rowsAndCols && game.field[pos.x][pos.y].rune === -1;
-}
-
-function isPlaceable(pos, player) {
-    return pos.x >= 0 && pos.x < game.rowsAndCols && pos.y >= 0 && pos.y < game.rowsAndCols && game.field[pos.x][pos.y].rune !== 0 && game.field[pos.x][pos.y].player !== player;
-}
-
 function doMove(move, updateOptions = true) {
     game.field[move.targetPos.x][move.targetPos.y].rune = move.after.rune;
     game.field[move.targetPos.x][move.targetPos.y].player = move.after.player;
@@ -275,43 +221,18 @@ function undoMove(move, updateOptions = true) {
 
 function testMove(move) {
     doMove(move, false);
-    const valid = !isAttacked(move.after.player);
-    undoMove(move, false);
-    return valid;
-}
-
-function isAttacked(player) {
     const attackedFields = [];
     const playerFields = [];
     iterateField((cell, pos) => {
-        if (cell.player === player) {
+        if (cell.player === move.after.player) {
             playerFields.push(`${pos.x}-${pos.y}`);
         } else {
             attackedFields.push(...getAttackedFields(pos, cell.player).map(f => `${f.pos.x}-${f.pos.y}`));
         }
     });
-    return new Set([...attackedFields, ...playerFields]).size !== new Set(attackedFields).size + playerFields.length;
-}
-
-function processPaths(paths, player) {
-    const positions = [];
-    for (const path of paths) {
-        const mappedPath = path.map(pos => { return { x: pos[0], y: pos[1] } });
-        const lastPos = mappedPath[mappedPath.length - 1];
-        const behindPath = mappedPath.slice(0, -1);
-        if (
-            mappedPath.length === 0 ||
-            !isPlaceable(lastPos, player) ||
-            mappedPath.length > 1 && behindPath.some(pos => !isEmpty(pos))
-        ) {
-            continue;
-        }
-        positions.push({
-            pos: lastPos,
-            paths: behindPath
-        });
-    }
-    return positions;
+    const valid = new Set([...attackedFields, ...playerFields]).size === new Set(attackedFields).size + playerFields.length;
+    undoMove(move, false);
+    return valid;
 }
 
 function getAttackedFields(pos) {
@@ -319,6 +240,26 @@ function getAttackedFields(pos) {
     const y = pos.y;
     const rune = game.field[x][y].rune;
     const player = game.field[x][y].player;
+    const processPaths = (paths) => {
+        const positions = [];
+        for (const path of paths) {
+            const mappedPath = path.map(pos => { return { x: pos[0], y: pos[1] } });
+            const lastPos = mappedPath[mappedPath.length - 1];
+            const behindPath = mappedPath.slice(0, -1);
+            if (
+                mappedPath.length === 0 ||
+                !isPlaceable(lastPos, player) ||
+                mappedPath.length > 1 && behindPath.some(pos => !isEmpty(pos))
+            ) {
+                continue;
+            }
+            positions.push({
+                pos: lastPos,
+                paths: behindPath
+            });
+        }
+        return positions;
+    }
     const attackedFields = [];
     switch (rune) {
         case 1: attackedFields.push(...processPaths([
@@ -330,7 +271,7 @@ function getAttackedFields(pos) {
             [[x + 1, y - 1]],
             [[x + 1, y]],
             [[x + 1, y + 1]],
-        ], player));
+        ]));
             break;
         case 2: attackedFields.push(...processPaths([
             [[x - 1, y]],
@@ -345,7 +286,7 @@ function getAttackedFields(pos) {
             [[x, y + 1]],
             [[x, y + 1], [x, y + 2]],
             [[x, y + 1], [x, y + 2], [x, y + 3]],
-        ], player));
+        ]));
             break;
         case 3: attackedFields.push(...processPaths([
             [[x - 1, y]],
@@ -364,7 +305,7 @@ function getAttackedFields(pos) {
             [[x + 1, y], [x + 2, y], [x + 2, y - 1]],
             [[x, y - 1], [x, y - 2], [x - 1, y - 2]],
             [[x, y + 1], [x, y + 2], [x - 1, y + 2]],
-        ], player));
+        ]));
             break;
         case 4: attackedFields.push(...processPaths([
             [[x - 1, y - 1]],
@@ -379,7 +320,7 @@ function getAttackedFields(pos) {
             [[x + 1, y - 1], [x + 2, y - 2], [x + 3, y - 3]],
             [[x - 1, y + 1], [x - 2, y + 2], [x - 3, y + 3]],
             [[x + 1, y + 1], [x + 2, y + 2], [x + 3, y + 3]],
-        ], player));
+        ]));
             break;
         case 5: attackedFields.push(...processPaths([
             [[x - 1, y - 1]],
@@ -398,10 +339,39 @@ function getAttackedFields(pos) {
             [[x + 1, y - 1], [x + 2, y - 2], [x + 1, y - 3]],
             [[x - 1, y + 1], [x - 2, y + 2], [x - 1, y + 3]],
             [[x + 1, y + 1], [x + 2, y + 2], [x + 1, y + 3]],
-        ], player));
+        ]));
             break;
     };
     return attackedFields;
+}
+
+function getInboundMouse() {
+    if (mouseX < 0 || mouseX >= game.size || mouseY < 0 || mouseY >= game.size) {
+        return { x: 0, y: 0 };
+    }
+    const x = Math.floor(mouseX * game.rowsAndCols / game.size);
+    const y = Math.floor(mouseY * game.rowsAndCols / game.size);
+    return { x, y }
+}
+
+// Gets Called automatically
+function mouseWheel(event) {
+    if (event.delta < 0) {
+        game.selection.optionsIndex++;
+    } else {
+        game.selection.optionsIndex--;
+        if (game.selection.optionsIndex < 0) {
+            game.selection.optionsIndex = 1000;
+        }
+    }
+}
+
+function isEmpty(pos) {
+    return pos.x >= 0 && pos.x < game.rowsAndCols && pos.y >= 0 && pos.y < game.rowsAndCols && game.field[pos.x][pos.y].rune === -1;
+}
+
+function isPlaceable(pos, player) {
+    return pos.x >= 0 && pos.x < game.rowsAndCols && pos.y >= 0 && pos.y < game.rowsAndCols && game.field[pos.x][pos.y].rune !== 0 && game.field[pos.x][pos.y].player !== player;
 }
 
 function iterateField(doStuff) {
@@ -410,4 +380,22 @@ function iterateField(doStuff) {
             doStuff(game.field[x][y], { x, y });
         }
     }
+}
+
+function generateField() {
+    for (let i = 0; i < game.rowsAndCols; i++) {
+        if (game.field[i] === undefined) {
+            game.field[i] = [];
+        }
+        for (let j = 0; j < game.rowsAndCols; j++) {
+            game.field[i][j] = {
+                player: -1,
+                rune: -1,
+            }
+        }
+    }
+}
+
+function compPos(pos1, pos2) {
+    return pos1.x === pos2.x && pos1.y === pos2.y;
 }
