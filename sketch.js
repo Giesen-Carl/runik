@@ -46,29 +46,29 @@ function handleInput() {
         const mousePos = getInboundMouse();
         // Click rune field
         if (!isEmpty(mousePos)) {
-            const options = allOptions[turnplayer].find(o => o.after.pos.x === mousePos.x && o.pos.y === mousePos.y);
-            if (selection.active && mousePos.x === selection.pos.x && mousePos.y === selection.pos.y) {
+            const options = allOptions[turnplayer].filter(move => compPos(mousePos, move.sourcePos));
+            if (selection.active && compPos(mousePos, selection.pos)) {
                 selection.active = false;
             } else if (
                 field[mousePos.x][mousePos.y].player === turnplayer &&
-                Object.keys(allOptions[turnplayer]).length > 0 &&
-                options
+                allOptions[turnplayer].length > 0 &&
+                options.length > 0
             ) {
                 selection.active = true;
                 selection.pos.x = mousePos.x;
                 selection.pos.y = mousePos.y;
                 // Generate Options
                 selection.options = options;
-
             }
         }
         // Click option field
-        const optionField = selection.options.find(o => o.pos.x === mousePos.x && o.pos.y === mouseDown.pos.y)
-        if (selection.active && optionField) {
-            const keys = Object.keys(optionField);
-            const rune = keys[selection.optionsIndex % keys.length];
-            const move = optionField[rune];
-            doMove(move);
+        const moveOptions =
+            selection.active ? allOptions[turnplayer]
+                .filter(move => compPos(selection.pos, move.sourcePos))
+                .filter(move => compPos(mousePos, move.targetPos))
+                : [];
+        if (moveOptions.length > 0) {
+            doMove(moveOptions[selection.optionsIndex % moveOptions.length]);
             // Confirm move
             selection.active = false;
             selection.pos.x = -1;
@@ -81,29 +81,25 @@ function handleInput() {
     }
 }
 
+function compPos(pos1, pos2) {
+    return pos1.x === pos2.x && pos1.y === pos2.y;
+}
+
 function handleRender() {
     // Draw all Squares
     iterateField((cell, x, y) => {
-        drawRect(x, y, getPlayerColor(cell.player), getRuneText(cell.rune))
+        drawRect(x, y, getPlayerColor(cell.player), cell.rune)
     });
-    // Draw Option Plates
     if (selection.active) {
-        for (const option of Object.values(selection.options)) {
-            if (Object.values(option).length > 0) {
-                const pos = Object.values(option)[0].pos;
-                drawRect(pos.x, pos.y, 170, getRuneText(field[pos.x][pos.y].rune))
-            }
+        const moveOptions = allOptions[turnplayer].filter(move => compPos(selection.pos, move.sourcePos));
+        const optionPlatePositions = moveOptions.map(move => move.targetPos);
+        // Draw Option Plates
+        optionPlatePositions.forEach(pos => drawRect(pos.x, pos.y, 170, field[pos.x][pos.y].rune));
+        const mousePos = getInboundMouse();
+        if (isEmpty(mousePos) && optionPlatePositions.find(pos => compPos(pos, mousePos))) {
+            const optionPlateMoves = moveOptions.filter(move => compPos(mousePos, move.targetPos));
+            drawRect(mousePos.x, mousePos.y, 140, optionPlateMoves[selection.optionsIndex % optionPlateMoves.length].after.rune);
         }
-    }
-
-    // Draw hover field
-    const mousePos = getInboundMouse();
-    drawRect(mousePos.x, mousePos.y, 140, getRuneText(field[mousePos.x][mousePos.y].rune));
-    // Draw hover Option field
-    const hoveredField = selection.options[`${mousePos.x}-${mousePos.y}`];
-    if (isEmpty(mousePos) && selection.active && hoveredField) {
-        const keys = Object.keys(hoveredField);
-        drawRect(mousePos.x, mousePos.y, 140, getRuneText(keys[selection.optionsIndex % keys.length]));
     }
 }
 
@@ -116,7 +112,7 @@ function getInboundMouse() {
     return { x, y }
 }
 
-function drawRect(xPos, yPos, color, t) {
+function drawRect(xPos, yPos, color, rune) {
     // Draw Rect
     fill(color);
     stroke(220)
@@ -127,7 +123,7 @@ function drawRect(xPos, yPos, color, t) {
     fill(0);
     strokeWeight(0);
     textSize(rectSize / textRatio);
-    text(t, (xPos + 0.5 - 0.5 / textRatio) * rectSize, (yPos + 0.5 + 0.5 / textRatio) * rectSize);
+    text(getRuneText(rune), (xPos + 0.5 - 0.5 / textRatio) * rectSize, (yPos + 0.5 + 0.5 / textRatio) * rectSize);
 }
 
 // Gets Called automatically
@@ -188,18 +184,14 @@ function generateAllOptions() {
     }
     iterateField((field, x, y) => {
         if (field.player > -1) {
-            const generatedOptions = generateOptions({ x, y });
-            console.log(generatedOptions)
-            if (generatedOptions.length > 0) {
-                options[field.player] = generatedOptions;
-            }
+            options[field.player].push(...generateOptions({ x, y }));
         }
     });
     return options;
 }
 
-function addMoveToOptions(options, pos, rune, player, path) {
-    const move = genMove(pos, rune, player, path);
+function addMoveToOptions(options, sourcePos, targetPos, rune, player, path) {
+    const move = genMove(sourcePos, targetPos, rune, player, path);
     if (testMove(move)) {
         options.push(move);
     }
@@ -218,9 +210,9 @@ function generateOptions(pos) {
     }
     // Add Blocker Options
     const blockerFields = getBlockerFields(pos);
-    blockerFields.forEach(pos => addMoveToOptions(options, pos, 0, player, []));
+    blockerFields.forEach(blockerPos => addMoveToOptions(options, pos, blockerPos, 0, player, []));
     // Add Rune Options
-    getAttackedFields(pos).forEach(ret => placeableRunes.forEach(pr => addMoveToOptions(options, ret.pos, pr, player, ret.paths)))
+    getAttackedFields(pos).forEach(ret => placeableRunes.forEach(pr => addMoveToOptions(options, pos, ret.pos, pr, player, ret.paths)))
     return options;
 }
 
@@ -239,12 +231,13 @@ function getBlockerFields(pos) {
     return blockerFields;
 }
 
-function genMove(pos, rune, player, path) {
+function genMove(sourcePos, targetPos, rune, player, path) {
     const move = {
-        pos: pos,
+        sourcePos: sourcePos,
+        targetPos: targetPos,
         before: {
-            rune: field[pos.x][pos.y].rune,
-            player: field[pos.x][pos.y].player,
+            rune: field[targetPos.x][targetPos.y].rune,
+            player: field[targetPos.x][targetPos.y].player,
         },
         after: {
             rune: rune,
@@ -264,8 +257,8 @@ function isPlaceable(pos, player) {
 }
 
 function doMove(move, updateOptions = true) {
-    field[move.pos.x][move.pos.y].rune = move.after.rune;
-    field[move.pos.x][move.pos.y].player = move.after.player;
+    field[move.targetPos.x][move.targetPos.y].rune = move.after.rune;
+    field[move.targetPos.x][move.targetPos.y].player = move.after.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = 0;
         field[path.x][path.y].player = move.after.player;
@@ -276,8 +269,8 @@ function doMove(move, updateOptions = true) {
 }
 
 function undoMove(move, updateOptions = true) {
-    field[move.pos.x][move.pos.y].rune = move.before.rune;
-    field[move.pos.x][move.pos.y].player = move.before.player;
+    field[move.targetPos.x][move.targetPos.y].rune = move.before.rune;
+    field[move.targetPos.x][move.targetPos.y].player = move.before.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = -1;
         field[path.x][path.y].player = -1;
