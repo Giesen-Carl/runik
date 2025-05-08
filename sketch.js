@@ -8,10 +8,7 @@ const players = [
         color: 'green',
         // type: 'human',
         type: 'computer',
-        strategy: (node) => {
-            const moves = node.moves;
-            return moves[1][Math.floor(Math.random() * moves[1].length)];
-        },
+        strategy: () => runMinimax(1, 2),
     }
 ]
 
@@ -47,7 +44,7 @@ function setup() {
         rune: 1,
         player: game.players[1].id,
     }
-    game.moves = generateMoves(game.field);
+    game.moves = generateMoves(game.field, game.turnplayer.id);
 }
 
 function draw() {
@@ -68,7 +65,7 @@ function handleInput() {
             const mousePos = getInboundMouse();
             // Click rune field
             if (!isEmpty(game.field, mousePos) && game.turnplayer.type === 'human') {
-                const options = game.moves[game.turnplayer.id].filter(move => compPos(mousePos, move.sourcePos));
+                const options = game.moves.filter(move => compPos(mousePos, move.sourcePos));
                 if (game.selection.active && compPos(mousePos, game.selection.pos)) {
                     game.selection.active = false;
                 } else if (
@@ -81,7 +78,7 @@ function handleInput() {
             }
             // Click option field
             const moveOptions =
-                game.selection.active ? game.moves[game.turnplayer.id]
+                game.selection.active ? game.moves
                     .filter(move => compPos(game.selection.pos, move.sourcePos))
                     .filter(move => compPos(mousePos, move.targetPos))
                     : [];
@@ -97,13 +94,15 @@ function handleInput() {
                 game.selection.pos.x = -1;
                 game.selection.pos.y = -1;
                 game.turnplayer = game.players.find(player => player.id !== game.turnplayer.id);
-            } else if (game.history.length > 0) {
+                game.moves = generateMoves(game.field, game.turnplayer.id);
+            } else if (game.history.length > 1) {
                 undoMove(game.field, game.history.pop());
                 undoMove(game.field, game.history.pop());
                 // Confirm move
                 game.selection.active = false;
                 game.selection.pos.x = -1;
                 game.selection.pos.y = -1;
+                game.moves = generateMoves(game.field, game.turnplayer.id);
             }
         }
     } else {
@@ -113,7 +112,7 @@ function handleInput() {
 
 function handleUpdate() {
     if (game.turnplayer.type === 'computer' && !gameEnded(game)) {
-        game.nextMove = game.turnplayer.strategy(game)
+        game.nextMove = game.turnplayer.strategy();
     }
     const move = game.nextMove;
     if (move) {
@@ -125,6 +124,7 @@ function handleUpdate() {
         game.selection.pos.x = -1;
         game.selection.pos.y = -1;
         game.turnplayer = game.players.find(player => player.id !== game.turnplayer.id);
+        game.moves = generateMoves(game.field, game.turnplayer.id);
     }
 }
 
@@ -134,7 +134,7 @@ function handleRender() {
         let color;
         if (cell.player === -1) {
             color = 120;
-        } else if (cell.player > -1 && game.moves[cell.player].length === 0) {
+        } else if (cell.player > -1 && generateMoves(game.field, cell.player).length === 0) {
             color = 'red';
         } else {
             color = game.players.find(player => player.id === cell.player).color;
@@ -142,7 +142,7 @@ function handleRender() {
         drawRect(pos, color, cell.rune)
     });
     if (game.selection.active) {
-        const moveOptions = game.moves[game.turnplayer.id].filter(move => compPos(game.selection.pos, move.sourcePos));
+        const moveOptions = game.moves.filter(move => compPos(game.selection.pos, move.sourcePos));
         const optionPlatePositions = moveOptions.map(move => move.targetPos);
         // Draw Option Plates
         optionPlatePositions.forEach(pos => drawRect(pos, 170, game.field[pos.x][pos.y].rune));
@@ -181,13 +181,10 @@ function drawRect(pos, color, rune) {
     text(runeText, (xPos + 0.5 - 0.5 / textRatio) * rectSize, (yPos + 0.5 + 0.5 / textRatio) * rectSize);
 }
 
-function generateMoves(field) {
-    let options = {
-        '0': [],
-        '1': [],
-    }
+function generateMoves(field, player) {
+    let options = []
     iterateField(field, (cell, pos) => {
-        if (cell.player > -1 && cell.rune > 0) {
+        if (cell.player === player && cell.rune > 0) {
             // BLOCKER
             for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {
@@ -196,7 +193,7 @@ function generateMoves(field) {
                         if (isEmpty(field, targetPos)) {
                             const move = genMove(field, pos, targetPos, 0, cell.player, []);
                             if (testMove(field, move)) {
-                                options[cell.player].push(move);
+                                options.push(move);
                             }
                         }
                     }
@@ -207,7 +204,7 @@ function generateMoves(field) {
             getAttackedFields(field, pos).forEach(f => placeableRunes.forEach(pr => {
                 const move = genMove(field, pos, f.pos, pr, cell.player, f.paths);
                 if (testMove(field, move)) {
-                    options[cell.player].push(move);
+                    options.push(move);
                 }
             }))
         }
@@ -232,32 +229,26 @@ function genMove(field, sourcePos, targetPos, rune, player, path) {
     return move;
 }
 
-function doMove(field, move, updateOptions = true) {
+function doMove(field, move) {
     field[move.targetPos.x][move.targetPos.y].rune = move.after.rune;
     field[move.targetPos.x][move.targetPos.y].player = move.after.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = 0;
         field[path.x][path.y].player = move.after.player;
     }
-    if (updateOptions) {
-        game.moves = generateMoves(field);
-    }
 }
 
-function undoMove(field, move, updateOptions = true) {
+function undoMove(field, move) {
     field[move.targetPos.x][move.targetPos.y].rune = move.before.rune;
     field[move.targetPos.x][move.targetPos.y].player = move.before.player;
     for (const path of move.path) {
         field[path.x][path.y].rune = -1;
         field[path.x][path.y].player = -1;
     }
-    if (updateOptions) {
-        game.moves = generateMoves(field);
-    }
 }
 
 function testMove(field, move) {
-    doMove(field, move, false);
+    doMove(field, move);
     const attackedFields = [];
     const playerFields = [];
     iterateField(field, (cell, pos) => {
@@ -268,7 +259,7 @@ function testMove(field, move) {
         }
     });
     const valid = new Set([...attackedFields, ...playerFields]).size === new Set(attackedFields).size + playerFields.length;
-    undoMove(field, move, false);
+    undoMove(field, move);
     return valid;
 }
 
@@ -403,4 +394,79 @@ function compPos(pos1, pos2) {
 
 function gameEnded(game) {
     return Object.values(game.moves).some(moves => moves.length === 0);
+}
+
+function getLosingPlayer(game) {
+    const playerIds = Object.keys(game.moves);
+    for (const id of playerIds) {
+        if (generateMoves(game.field, id).length === 0) {
+            return parseInt(id);
+        }
+    }
+    return undefined;
+}
+
+function runMinimax(playerId, depth) {
+    const clonedField = JSON.parse(JSON.stringify(game.field));
+    const res = minimax({ field: clonedField, playerId: playerId }, depth, -Infinity, Infinity, true, (node) => evaluate(node, playerId));
+    return res.move
+}
+
+function minimax(node, depth, alpha, beta, maximizingPlayer, eval) {
+    if (depth === 0) {
+        return { score: eval(node), move: null };
+    }
+
+    let bestMove = null;
+
+    const genForPlayer = game.players.map(p => p.id).find(id => maximizingPlayer ? id === node.playerId : id !== node.playerId);
+    const moves = generateMoves(node.field, genForPlayer);
+
+    if (maximizingPlayer) {
+        let maxEval = -Infinity;
+        for (let move of moves) {
+            doMove(node.field, move);
+            const { score } = minimax(node, depth - 1, alpha, beta, false, eval);
+            undoMove(node.field, move);
+
+            if (score > maxEval) {
+                maxEval = score;
+                bestMove = move;
+            }
+            alpha = Math.max(alpha, score);
+            if (beta <= alpha) {
+                break;
+            }
+        }
+        return { score: maxEval, move: bestMove };
+    } else {
+        let minEval = Infinity;
+        for (let move of moves) {
+            doMove(node.field, move);
+            const { score } = minimax(node, depth - 1, alpha, beta, true, eval);
+            undoMove(node.field, move);
+
+            if (score < minEval) {
+                minEval = score;
+                bestMove = move;
+            }
+            beta = Math.min(beta, score);
+            if (beta <= alpha) {
+                break;
+            }
+        }
+        return { score: minEval, move: bestMove };;
+    }
+}
+
+function evaluate(node, playerId) {
+    const moves = generateMoves(node.field);
+    const losingPlayerId = getLosingPlayer({ moves });
+    if (losingPlayerId === undefined) {
+        return 0;
+    } else if (losingPlayerId === playerId) {
+        return -1;
+    } else {
+        return 1;
+    }
 }
