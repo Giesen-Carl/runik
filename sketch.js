@@ -3,11 +3,13 @@ const players = [
         id: 0,
         color: 'blue',
         type: 'human',
+        hasLost: false,
     }, {
         id: 1,
         color: 'green',
         // type: 'human',
         type: 'computer',
+        hasLost: false,
         strategy: () => runMinimax(1, 2),
     }
 ]
@@ -87,21 +89,18 @@ function handleInput() {
                 game.nextMove = move;
             }
         } else if (mouseButton === 'center') {
-            if (game.players.every(player => player.type === 'human' && game.history.length > 0)) {
-                undoMove(game.field, game.history.pop());
-                // Confirm move
+            if (game.history.length > 0) {
+                if (game.players.every(player => player.type === 'human')) {
+                    undoMove(game.field, game.history.pop());
+                    game.turnplayer = game.players.find(player => player.id !== game.turnplayer.id);
+                } else if (game.history.length > 1) {
+                    undoMove(game.field, game.history.pop());
+                    undoMove(game.field, game.history.pop());
+                }
                 game.selection.active = false;
                 game.selection.pos.x = -1;
                 game.selection.pos.y = -1;
-                game.turnplayer = game.players.find(player => player.id !== game.turnplayer.id);
-                game.moves = generateMoves(game.field, game.turnplayer.id);
-            } else if (game.history.length > 1) {
-                undoMove(game.field, game.history.pop());
-                undoMove(game.field, game.history.pop());
-                // Confirm move
-                game.selection.active = false;
-                game.selection.pos.x = -1;
-                game.selection.pos.y = -1;
+                game.players.forEach(player => player.hasLost = false);
                 game.moves = generateMoves(game.field, game.turnplayer.id);
             }
         }
@@ -126,6 +125,11 @@ function handleUpdate() {
         game.turnplayer = game.players.find(player => player.id !== game.turnplayer.id);
         game.moves = generateMoves(game.field, game.turnplayer.id);
     }
+    for (const player of game.players) {
+        if (generateMoves(game.field, player.id).length === 0) {
+            player.hasLost = true;
+        }
+    }
 }
 
 function handleRender() {
@@ -134,7 +138,7 @@ function handleRender() {
         let color;
         if (cell.player === -1) {
             color = 120;
-        } else if (cell.player > -1 && generateMoves(game.field, cell.player).length === 0) {
+        } else if (cell.player > -1 && game.players.find(p => p.id === cell.player).hasLost) {
             color = 'red';
         } else {
             color = game.players.find(player => player.id === cell.player).color;
@@ -432,6 +436,8 @@ function minimax(node, depth, alpha, beta, maximizingPlayer, eval) {
             if (score > maxEval) {
                 maxEval = score;
                 bestMove = move;
+            } else if (score === maxEval && Math.random() < 0.5) {
+                bestMove = move;
             }
             alpha = Math.max(alpha, score);
             if (beta <= alpha) {
@@ -448,6 +454,8 @@ function minimax(node, depth, alpha, beta, maximizingPlayer, eval) {
 
             if (score < minEval) {
                 minEval = score;
+                bestMove = move;
+            } else if (score === minEval && Math.random() < 0.5) {
                 bestMove = move;
             }
             beta = Math.min(beta, score);
