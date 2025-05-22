@@ -11,7 +11,7 @@ function setup() {
 function draw() {
     const globals = getGlobals();
     resizeCanvas(globals.width, globals.height);
-    background(220);
+    background(120);
     drawField();
     handleInput();
     writeGlobals();
@@ -19,29 +19,39 @@ function draw() {
 
 function drawField() {
     const globals = getGlobals();
-    const rectSize = Math.max(30 * (globals.zoom / 100), 7);
-    const rows = globals.width / rectSize;
-    const cols = globals.height / rectSize;
-    const rowOffset = rows / 2;
-    const colOffset = cols / 2;
-    const gridRowOffset = rows / 2 % 1 - globals.xPos % 1;
-    const gridColOffset = cols / 2 % 1 - globals.yPos % 1;
-    fill(120);
-    stroke(220)
-    strokeWeight(rectSize / 20)
-    for (let i = -2; i < rows; i++) {
-        for (let j = -2; j < cols; j++) {
-            rect((i + gridRowOffset) * rectSize, (j + gridColOffset) * rectSize, rectSize, rectSize);
-        }
+    drawGrid(globals);
+    drawCells(globals);
+}
+
+function drawGrid(globals) {
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
+    stroke(240);
+    strokeWeight(rectSize / 20);
+    const startYL = (0.5 * globals.height - globals.yPos * rectSize) % rectSize;
+    for (let yl = startYL; yl < globals.height; yl += rectSize) {
+        line(0, yl, globals.width, yl);
     }
-    for (const [x, y] of state) {
-        renderRect(x, y, rowOffset, colOffset, globals.xPos, globals.yPos, rectSize);
+    const startXL = (0.5 * globals.width - globals.xPos * rectSize) % rectSize;
+    for (let xl = startXL; xl < globals.width; xl += rectSize) {
+        line(xl, 0, xl, globals.height);
     }
 }
 
-function renderRect(x, y, rowOffset, colOffset, globalX, globalY, rectSize) {
-    const xPos = (x - globalX + rowOffset) * rectSize;
-    const yPos = (y - globalY + colOffset) * rectSize;
+function drawCells(globals) {
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
+    const rowOffset = 0.5 * globals.height / rectSize;
+    const colOffset = 0.5 * globals.width / rectSize;
+    fill(120);
+    stroke(220);
+    strokeWeight(rectSize / 20);
+    for (const [x, y] of state) {
+        renderRect(x, y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
+    }
+}
+
+function renderRect(x, y, colOffset, rowOffset, globalX, globalY, rectSize) {
+    const xPos = (x - globalX + colOffset) * rectSize;
+    const yPos = (y - globalY + rowOffset) * rectSize;
     if (xPos < -rectSize || xPos > width || yPos < -rectSize || yPos > height) {
         return;
     }
@@ -123,17 +133,15 @@ function handleInput() {
     const globals = getGlobals();
     handleKeyBoard(globals);
     // handleMouse(globals);
-    console.log(getInboundMouse(globals));
 }
 
 function getInboundMouse(globals) {
     if (mouseX < 0 || mouseX >= globals.width || mouseY < 0 || mouseY >= globals.height) {
         return { x: 0, y: 0 };
     }
-    const rectSize = Math.max(30 * (globals.zoom / 100), 7);
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
     const rows = globals.width / rectSize;
     const cols = globals.height / rectSize;
-    console.log(rows)
     const x = Math.floor(mouseX * cols / globals.height);
     const y = 0
 
@@ -157,7 +165,7 @@ function handleKeyBoard(globals) {
         document.getElementById('zoom').value = parseFloat(globals.zoom) + 1;
     }
     if (keyIsDown(173)) {
-        document.getElementById('zoom').value = parseFloat(globals.zoom) - 1;
+        document.getElementById('zoom').value = Math.max(parseFloat(globals.zoom) - 1, 1);
     }
 }
 
