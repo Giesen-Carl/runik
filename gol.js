@@ -1,11 +1,11 @@
 let state = [];
+let selected = [];
 
 function setup() {
     readGlobals();
     const globals = getGlobals();
     createCanvas(globals.width, globals.height);
     initState();
-    // setInterval(() => loadState(), 10);aaaaaaaa
 }
 
 function draw() {
@@ -21,6 +21,8 @@ function drawField() {
     const globals = getGlobals();
     drawGrid(globals);
     drawCells(globals);
+    drawSelected(globals);
+    drawHover(globals);
 }
 
 function drawGrid(globals) {
@@ -41,10 +43,33 @@ function drawCells(globals) {
     const rectSize = Math.max(30 * (globals.zoom / 100), 1);
     const rowOffset = 0.5 * globals.height / rectSize;
     const colOffset = 0.5 * globals.width / rectSize;
-    fill(120);
+    fill('#00ff00');
     stroke(220);
     strokeWeight(rectSize / 20);
     for (const [x, y] of state) {
+        renderRect(x, y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
+    }
+}
+
+function drawHover(globals) {
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
+    const rowOffset = 0.5 * globals.height / rectSize;
+    const colOffset = 0.5 * globals.width / rectSize;
+    fill('#ffffff80');
+    stroke(220);
+    strokeWeight(rectSize / 20);
+    const [x, y] = getMousePos(globals);
+    renderRect(x, y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
+}
+
+function drawSelected(globals) {
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
+    const rowOffset = 0.5 * globals.height / rectSize;
+    const colOffset = 0.5 * globals.width / rectSize;
+    fill('#ff000080');
+    stroke(220);
+    strokeWeight(rectSize / 20);
+    for (const [x, y] of selected) {
         renderRect(x, y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
     }
 }
@@ -55,7 +80,6 @@ function renderRect(x, y, colOffset, rowOffset, globalX, globalY, rectSize) {
     if (xPos < -rectSize || xPos > width || yPos < -rectSize || yPos > height) {
         return;
     }
-    fill('#00ff00');
     rect(xPos, yPos, rectSize, rectSize);
 }
 
@@ -132,7 +156,6 @@ const scrollSpeed = 0.2;
 function handleInput() {
     const globals = getGlobals();
     handleKeyBoard(globals);
-    // handleMouse(globals);
 }
 
 function getInboundMouse(globals) {
@@ -175,5 +198,24 @@ function mouseWheel(event) {
         document.getElementById('zoom').value = parseFloat(globals.zoom) + 5;
     } else {
         document.getElementById('zoom').value = parseFloat(globals.zoom) - 5;
+    }
+}
+
+function getMousePos(globals) {
+    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
+    const x = Math.floor(globals.xPos + (mouseX - 0.5 * globals.width) / rectSize);
+    const y = Math.floor(globals.yPos + (mouseY - 0.5 * globals.height) / rectSize);
+    return [x, y];
+}
+
+function mousePressed() {
+    const globals = getGlobals();
+    const [mx, my] = getMousePos(globals);
+
+    const index = selected.findIndex(([sx, sy]) => sx === mx && sy === my);
+    if (index < 0) {
+        selected.push([mx, my]);
+    } else {
+        selected.splice(index, 1);
     }
 }
