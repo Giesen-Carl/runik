@@ -49,11 +49,11 @@ function drawCells(globals) {
     const rectSize = Math.max(30 * (globals.zoom / 100), 1);
     const rowOffset = 0.5 * globals.height / rectSize;
     const colOffset = 0.5 * globals.width / rectSize;
-    fill('#00ff00');
     stroke(220);
     strokeWeight(rectSize / 20);
-    for (const [x, y] of state) {
-        renderRect(x, y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
+    for (const cell of state) {
+        fill(cell.c);
+        renderRect(cell.x, cell.y, colOffset, rowOffset, globals.xPos, globals.yPos, rectSize);
     }
 }
 
@@ -192,8 +192,9 @@ function mousePressed() {
 function handleNetworkQueues() {
     if (network.connected) {
         while (network.sendingQueue.length > 0) {
-            const msg = network.sendingQueue.shift();
+            const cells = network.sendingQueue.shift();
             // network.websocket.send(msg);
+            const msg = cells.map(m => { return { x: m[0], y: m[1], c: 'purple' } });
             receiveMessage(JSON.stringify(msg));
         }
         while (network.receivedQueue.length > 0) {
@@ -209,12 +210,18 @@ let networkState = [];
 let addingCells = [];
 function initState() {
     // networkState = [[5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5], [10, 6]];
-    networkState = [];
+    networkState = [
+        { x: 0, y: 0, c: 'black' },
+        { x: 1, y: 0, c: 'black' },
+        { x: 0, y: 1, c: 'black' },
+        { x: 1, y: 1, c: 'black' },
+    ];
 }
 setupServer();
 function setupServer() {
     initState();
     setInterval(drawServer, 16);
+    sendMessage(networkState);
 }
 
 function drawServer() {
@@ -226,27 +233,37 @@ function drawServer() {
 function advanceState() {
     const getN = (x, y) => { return [[x - 1, y - 1], [x - 1, y], [x - 1, y + 1], [x, y - 1], [x, y + 1], [x + 1, y - 1], [x + 1, y], [x + 1, y + 1]] };
     const map = [];
-    for (const [x, y] of networkState) {
-        const n = getN(x, y);
+    for (const cell of networkState) {
+        const n = getN(cell.x, cell.y);
         for (const [nx, ny] of n) {
             const existing = map.find((m) => m.x === nx && m.y === ny);
             if (existing) {
-                existing.n = existing.n + 1;
+                if (existing.n[cell.c] === undefined) {
+                    existing.n[cell.c] = 1;
+                } else {
+                    existing.n[cell.c] = existing.n[cell.c] + 1;
+                }
             } else {
-                map.push({ x: nx, y: ny, o: false, n: 1 });
+                map.push({ x: nx, y: ny, o: false, n: { [cell.c]: 1 } });
             }
         }
-        const existing = map.find((m) => m.x === x && m.y === y);
+        const existing = map.find((m) => m.x === cell.x && m.y === cell.y);
         if (existing) {
             existing.o = true;
         } else {
-            map.push({ x: x, y: y, o: true, n: 0 });
+            map.push({ x: cell.x, y: cell.y, o: true, n: {} });
         }
     }
     const newState = [];
     for (const m of map) {
-        if (m.n === 3 || m.n === 2 && m.o) {
-            newState.push([m.x, m.y]);
+        const obj = m.n;
+        const n = Object.values(obj).reduce((total, num) => total + num, 0);
+        if (n === 3 || n === 2 && m.o) {
+            const sortedKeys = Object.keys(obj).sort((a, b) => obj[b] - obj[a]);
+            const maxKey = sortedKeys[0] === 'black' && sortedKeys.length > 1 ? sortedKeys[1] : sortedKeys[0];
+            const duplicates = Object.values(obj).filter(o => o === obj[maxKey]).length > 1;
+            const c = duplicates ? 'black' : maxKey;
+            newState.push({ x: m.x, y: m.y, c: c });
         }
     }
     networkState = newState;
@@ -254,12 +271,12 @@ function advanceState() {
 
 function addCellsToState() {
     while (addingCells.length > 0) {
-        const [cx, cy] = addingCells.shift();
-        const existing = networkState.find(([mx, my]) => mx === cx && my === cy);
+        const cell = addingCells.shift();
+        const existing = networkState.find((ex) => ex.x === cell.x && ex.y === cell.y);
         if (!existing) {
-            networkState.push([cx, cy]);
+            networkState.push(cell);
         } else {
-            const index = networkState.findIndex(([mx, my]) => mx === cx && my === cy);
+            const index = networkState.findIndex((ex) => ex.x === cell.x && ex.y === cell.y);
             networkState.splice(index, 1);
         }
     }
@@ -267,7 +284,7 @@ function addCellsToState() {
 
 function receiveMessage(msg) {
     const data = JSON.parse(msg);
-    if (data instanceof Array && data.every(d => d instanceof Array && d.length === 2 && typeof d[0] === 'number' && typeof d[1] === 'number')) {
+    if (data instanceof Array && data.every(d => typeof d.x === 'number' && typeof d.y === 'number' && typeof d.c === 'string')) {
         addingCells.push(...data);
     }
 }
