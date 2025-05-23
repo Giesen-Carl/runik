@@ -1,14 +1,20 @@
 let state = [];
-let selected = [];
+let selected;
+const network = {
+    websocket: undefined,
+    connected: true,
+    sendingQueue: [],
+    receivedQueue: [],
+}
 
 function setup() {
     readGlobals();
     const globals = getGlobals();
     createCanvas(globals.width, globals.height);
-    initState();
 }
 
 function draw() {
+    handleNetworkQueues();
     const globals = getGlobals();
     resizeCanvas(globals.width, globals.height);
     background(120);
@@ -83,39 +89,6 @@ function renderRect(x, y, colOffset, rowOffset, globalX, globalY, rectSize) {
     rect(xPos, yPos, rectSize, rectSize);
 }
 
-function advanceState() {
-    const getN = (x, y) => { return [[x - 1, y - 1], [x - 1, y], [x - 1, y + 1], [x, y - 1], [x, y + 1], [x + 1, y - 1], [x + 1, y], [x + 1, y + 1]] };
-    const map = [];
-    for (const [x, y] of state) {
-        const n = getN(x, y);
-        for (const [nx, ny] of n) {
-            const existing = map.find((m) => m.x === nx && m.y === ny);
-            if (existing) {
-                existing.n = existing.n + 1;
-            } else {
-                map.push({ x: nx, y: ny, o: false, n: 1 });
-            }
-        }
-        const existing = map.find((m) => m.x === x && m.y === y);
-        if (existing) {
-            existing.o = true;
-        } else {
-            map.push({ x: x, y: y, o: true, n: 0 });
-        }
-    }
-    const newState = [];
-    for (const m of map) {
-        if (m.n === 3 || m.n === 2 && m.o) {
-            newState.push([m.x, m.y]);
-        }
-    }
-    state = newState;
-}
-
-function initState() {
-    state = [[5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5], [10, 6]];
-}
-
 function loadState() {
     advanceState();
 }
@@ -135,6 +108,7 @@ function readGlobals() {
     document.getElementById('width').value = parseFloat(globals.width);
     document.getElementById('height').value = parseFloat(globals.height);
     document.getElementById('zoom').value = parseFloat(globals.zoom);
+    selected = globals.selected || [];
 }
 
 function writeGlobals() {
@@ -148,6 +122,7 @@ function writeGlobals() {
         width: getDocumentValue('width', 500),
         height: getDocumentValue('height', 500),
         zoom: getDocumentValue('zoom', 100),
+        selected: selected || [],
     }
     document.cookie = `globals=${encodeURIComponent(JSON.stringify(globals))}`;
 }
@@ -156,19 +131,6 @@ const scrollSpeed = 0.2;
 function handleInput() {
     const globals = getGlobals();
     handleKeyBoard(globals);
-}
-
-function getInboundMouse(globals) {
-    if (mouseX < 0 || mouseX >= globals.width || mouseY < 0 || mouseY >= globals.height) {
-        return { x: 0, y: 0 };
-    }
-    const rectSize = Math.max(30 * (globals.zoom / 100), 1);
-    const rows = globals.width / rectSize;
-    const cols = globals.height / rectSize;
-    const x = Math.floor(mouseX * cols / globals.height);
-    const y = 0
-
-    return { x, y }
 }
 
 function handleKeyBoard(globals) {
@@ -189,6 +151,13 @@ function handleKeyBoard(globals) {
     }
     if (keyIsDown(173)) {
         document.getElementById('zoom').value = Math.max(parseFloat(globals.zoom) - 1, 1);
+    }
+    if (keyIsDown(13)) {
+        if (selected.length === 0) {
+            return;
+        }
+        network.sendingQueue.push(selected);
+        selected = [];
     }
 }
 
@@ -218,4 +187,91 @@ function mousePressed() {
     } else {
         selected.splice(index, 1);
     }
+}
+
+function handleNetworkQueues() {
+    if (network.connected) {
+        while (network.sendingQueue.length > 0) {
+            const msg = network.sendingQueue.shift();
+            // network.websocket.send(msg);
+            receiveMessage(JSON.stringify(msg));
+        }
+        while (network.receivedQueue.length > 0) {
+            const msg = network.receivedQueue.shift();
+            // receiveMessage(msg);
+            state = JSON.parse(msg);
+        }
+    }
+}
+
+// Server stuff
+let networkState = [];
+let addingCells = [];
+function initState() {
+    // networkState = [[5, 5], [6, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5], [10, 6]];
+    networkState = [];
+}
+setupServer();
+function setupServer() {
+    initState();
+    setInterval(drawServer, 16);
+}
+
+function drawServer() {
+    advanceState();
+    addCellsToState();
+    sendMessage(networkState);
+}
+
+function advanceState() {
+    const getN = (x, y) => { return [[x - 1, y - 1], [x - 1, y], [x - 1, y + 1], [x, y - 1], [x, y + 1], [x + 1, y - 1], [x + 1, y], [x + 1, y + 1]] };
+    const map = [];
+    for (const [x, y] of networkState) {
+        const n = getN(x, y);
+        for (const [nx, ny] of n) {
+            const existing = map.find((m) => m.x === nx && m.y === ny);
+            if (existing) {
+                existing.n = existing.n + 1;
+            } else {
+                map.push({ x: nx, y: ny, o: false, n: 1 });
+            }
+        }
+        const existing = map.find((m) => m.x === x && m.y === y);
+        if (existing) {
+            existing.o = true;
+        } else {
+            map.push({ x: x, y: y, o: true, n: 0 });
+        }
+    }
+    const newState = [];
+    for (const m of map) {
+        if (m.n === 3 || m.n === 2 && m.o) {
+            newState.push([m.x, m.y]);
+        }
+    }
+    networkState = newState;
+}
+
+function addCellsToState() {
+    while (addingCells.length > 0) {
+        const [cx, cy] = addingCells.shift();
+        const existing = networkState.find(([mx, my]) => mx === cx && my === cy);
+        if (!existing) {
+            networkState.push([cx, cy]);
+        } else {
+            const index = networkState.findIndex(([mx, my]) => mx === cx && my === cy);
+            networkState.splice(index, 1);
+        }
+    }
+}
+
+function receiveMessage(msg) {
+    const data = JSON.parse(msg);
+    if (data instanceof Array && data.every(d => d instanceof Array && d.length === 2 && typeof d[0] === 'number' && typeof d[1] === 'number')) {
+        addingCells.push(...data);
+    }
+}
+
+function sendMessage(msg) {
+    network.receivedQueue.push(JSON.stringify(msg));
 }
