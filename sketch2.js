@@ -123,9 +123,7 @@ function getCell(board, x, y) {
 
 function initBoard() {
     const board = new Uint8Array(Math.ceil(169 / 2));
-    setCell(board, 7, 7, 13);
-    setCell(board, 6, 6, 3);
-    // setCell(board, 6, 6, 3);
+    setCell(board, 6, 6, 2);
     setCell(board, 8, 8, 8);
 
     if (false) {
@@ -140,6 +138,7 @@ function initBoard() {
     return board;
 }
 
+// player is turnplayer
 function getChilds(board, player) {
     const childs = [];
     for (let x = 1; x <= 13; x++) {
@@ -162,7 +161,7 @@ function getChilds(board, player) {
                 const behind = path.slice(0, -1);
                 behind.forEach(p => setCell(newBoard, p[0], p[1], 1));
                 setCell(newBoard, pos[0], pos[1], setRuneFromPlayer(move.rune, player));
-                if (isLegal(newBoard)) {
+                if (isLegal(newBoard, player)) {
                     childs.push(newBoard)
                 }
             })
@@ -171,21 +170,39 @@ function getChilds(board, player) {
     return childs;
 }
 
+// player is turnplayer
 function isLegal(board, player) {
+    const opposingPlayer = getOpposingPlayer(player);
     for (let x = 1; x <= 13; x++) {
         for (let y = 1; y <= 13; y++) {
             const cellValue = getCell(board, x, y);
-            if (cellValue < 1 || cellValue > 12 || ((player === 1) === (cellValue <= 6))) continue;
+            if (cellValue < 1 || cellValue > 12 || ((opposingPlayer === 1) !== (cellValue <= 6))) continue;
             const runeId = getRuneFromPlayerrune(cellValue);
             const specificRuneMoves = basicMoves[runeId];
-            const shifted = specificRuneMoves.map(m => m.map(p => [x + p[0], y + p[1]]));
-            // conditions behind and target
-            if (true) {
-                return false;
+            const shifted = specificRuneMoves.map(m => m.map(p => [x + p[0], y + p[1]])).filter(path => path.every(pos => pos[0] > 0 && pos[0] <= 13 && pos[1] > 0 && pos[1] <= 13));
+            for (const path of shifted) {
+                const target = path[path.length - 1];
+                const targetCell = getCell(board, target[0], target[1]);
+                const targetPlayer = getPlayerFromRune(targetCell);
+                const targetRune = getRuneFromPlayerrune(targetCell);
+                const targetIsAttacked = targetPlayer === player && targetRune !== 1;
+                if (targetIsAttacked) {
+                    const behind = path.slice(0, -1);
+                    const behindEmpty = behind.every(p => getCell(board, p[0], p[1]) === 0);
+                    if (behindEmpty) {
+                        return false;
+                    }
+                }
             }
         }
     }
     return true;
+}
+
+function getOpposingPlayer(player) {
+    if (player === 1) return 2;
+    if (player === 2) return 1;
+    return 0;
 }
 // function getTargets(x, y, rune) {
 //     const paths = rune.range;
@@ -237,11 +254,8 @@ function setRuneFromPlayer(rune, player) {
     if (player === 0) return rune + 12;
 }
 function getRuneFromPlayerrune(rune) {
-    return (rune + 5) % 6 + 1
+    return rune === 0 ? 0 : (rune + 5) % 6 + 1
 }
-// const childs = getChilds(board, 1);
-// childs.forEach(c => printBoardWithCoords(c))
-isLegal(board, 1)
 function getMovesMapping() {
     // 1 - Blocker
     // 2 - Circle
@@ -292,3 +306,10 @@ function printBoardWithCoords(board) {
     }
     console.log(out);
 }
+
+const childs = getChilds(board, 1);
+childs.forEach((c, i) => {
+    console.log(i);
+    printBoardWithCoords(c)
+}
+)
