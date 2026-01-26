@@ -1,15 +1,85 @@
-// const board = new Uint8Array(Math.ceil(169 / 2));
-// for (let i = 1; i <= 13; i++) {
-//     for (let j = 1; j <= 13; j++) {
-//         setCell(board, i, j, j);
-//     }
-// }
+const basicMoves = {
+    2: [
+        [[-1, -1]],
+        [[-1, 0]],
+        [[-1, 1]],
+        [[0, -1]],
+        [[0, 1]],
+        [[1, -1]],
+        [[1, 0]],
+        [[1, 1]],
+    ],
+    3: [
+        [[-1, 0]],
+        [[-1, 0], [-2, 0]],
+        [[-1, 0], [-2, 0], [-3, 0]],
+        [[0, -1]],
+        [[0, -1], [0, -2]],
+        [[0, -1], [0, -2], [0, -3]],
+        [[1, 0]],
+        [[1, 0], [2, 0]],
+        [[1, 0], [2, 0], [3, 0]],
+        [[0, 1]],
+        [[0, 1], [0, 2]],
+        [[0, 1], [0, 2], [0, 3]],
+    ],
+    4: [
+        [[1, 0]],
+        [[1, 0], [2, 0]],
+        [[1, 0], [2, 0], [2, -1]],
+        [[1, 0], [2, 0], [2, 1]],
+        [[0, 1]],
+        [[0, 1], [0, 2]],
+        [[0, 1], [0, 2], [-1, 2]],
+        [[0, 1], [0, 2], [1, 2]],
+        [[-1, 0]],
+        [[-1, 0], [-2, 0]],
+        [[-1, 0], [-2, 0], [-2, 1]],
+        [[-1, 0], [-2, 0], [-2, -1]],
+        [[0, -1]],
+        [[0, -1], [0, -2]],
+        [[0, -1], [0, -2], [1, -2]],
+        [[0, -1], [0, -2], [-1, -2]],
+    ],
+    5: [
+        [[-1, -1]],
+        [[-1, -1], [-2, -2]],
+        [[-1, -1], [-2, -2], [-3, -3]],
+        [[-1, 1]],
+        [[-1, 1], [-2, 2]],
+        [[-1, 1], [-2, 2], [-3, 3]],
+        [[1, -1]],
+        [[1, -1], [2, -2]],
+        [[1, -1], [2, -2], [3, -3]],
+        [[1, 1]],
+        [[1, 1], [2, 2]],
+        [[1, 1], [2, 2], [3, 3]],
+    ],
+    6: [
+        [[-1, -1]],
+        [[-1, -1], [-2, -2]],
+        [[-1, -1], [-2, -2], [-3, -1]],
+        [[-1, -1], [-2, -2], [-1, -3]],
+        [[1, -1]],
+        [[1, -1], [2, -2]],
+        [[1, -1], [2, -2], [3, -1]],
+        [[1, -1], [2, -2], [1, -3]],
+        [[-1, 1]],
+        [[-1, 1], [-2, 2]],
+        [[-1, 1], [-2, 2], [-3, 1]],
+        [[-1, 1], [-2, 2], [-1, 3]],
+        [[1, 1]],
+        [[1, 1], [2, 2]],
+        [[1, 1], [2, 2], [3, 1]],
+        [[1, 1], [2, 2], [1, 3]],
+    ]
+}
+const runeMoves = getMovesMapping();
 const board = initBoard();
 function setup() {
     createCanvas(600, 600);
     printBoardWithCoords(board);
 }
-// const mapping = new Map(runes.map(rune => [rune.id, rune.image]));
 
 function draw() {
     background(200);
@@ -54,8 +124,8 @@ function getCell(board, x, y) {
 function initBoard() {
     const board = new Uint8Array(Math.ceil(169 / 2));
     setCell(board, 7, 7, 13);
-    // setCell(board, 6, 6, 2);
-    setCell(board, 6, 6, 6);
+    setCell(board, 6, 6, 3);
+    // setCell(board, 6, 6, 3);
     setCell(board, 8, 8, 8);
 
     if (false) {
@@ -70,6 +140,143 @@ function initBoard() {
     return board;
 }
 
+function getChilds(board, player) {
+    const childs = [];
+    for (let x = 1; x <= 13; x++) {
+        for (let y = 1; y <= 13; y++) {
+            const cellValue = getCell(board, x, y);
+            // filter player cells
+            if (cellValue < 1 || cellValue > 12 || ((player === 1) !== (cellValue <= 6))) continue;
+            const rune = getRuneFromPlayerrune(cellValue);
+            const specificRuneMoves = runeMoves[rune];
+            const shifted = specificRuneMoves.map(m => ({ path: m.path.map(p => [x + p[0], y + p[1]]), rune: m.rune }));
+            const placeable = shifted.filter(s => s.path.every(p => {
+                const x = p[0];
+                const y = p[1];
+                return x > 0 && x <= 13 && y > 0 && y <= 13 && getCell(board, x, y) === 0;
+            }))
+            placeable.forEach(move => {
+                const newBoard = new Uint8Array(board);
+                const path = move.path;
+                const pos = path[path.length - 1];
+                const behind = path.slice(0, -1);
+                behind.forEach(p => setCell(newBoard, p[0], p[1], 1));
+                setCell(newBoard, pos[0], pos[1], setRuneFromPlayer(move.rune, player));
+                if (isLegal(newBoard)) {
+                    childs.push(newBoard)
+                }
+            })
+        }
+    }
+    return childs;
+}
+
+function isLegal(board, player) {
+    for (let x = 1; x <= 13; x++) {
+        for (let y = 1; y <= 13; y++) {
+            const cellValue = getCell(board, x, y);
+            if (cellValue < 1 || cellValue > 12 || ((player === 1) === (cellValue <= 6))) continue;
+            const runeId = getRuneFromPlayerrune(cellValue);
+            const specificRuneMoves = basicMoves[runeId];
+            const shifted = specificRuneMoves.map(m => m.map(p => [x + p[0], y + p[1]]));
+            // conditions behind and target
+            if (true) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+// function getTargets(x, y, rune) {
+//     const paths = rune.range;
+//     const targets = [];
+//     const hash = [];
+//     paths.forEach(path => {
+//         const mappedPath = path.map(pos => { return { x: x + pos[0], y: y + pos[1] } });
+//         for (let i = 0; i < path.length; i++) {
+//             const subpath = i === 0 ? mappedPath : mappedPath.slice(0, -i);
+//             if (subpath.every(pos => getCell(board, pos.x, pos.y) === 0) && !hash.includes(hashPath(subpath))) {
+//                 targets.push({
+//                     pos: subpath[subpath.length - 1],
+//                     paths: subpath.slice(0, -1)
+//                 });
+//                 hash.push(hashPath(subpath));
+//             }
+//         }
+//         // for (let i = 0; i < path.length; i++) {
+//         //     const subpath = i === 0 ? mappedPath : mappedPath.slice(0, -i);
+//         //     const lastPos = subpath[subpath.length - 1];
+//         //     const behindPath = subpath.slice(0, -1);
+//         //     if (isPlaceable(runes, lastPos, rune.player) && behindPath.every(pos => isEmpty(runes, pos))) {
+//         //         targets.push({
+//         //             pos: lastPos,
+//         //             paths: behindPath
+//         //         });
+//         //     }
+//         // }
+//     })
+//     return targets;
+// }
+function getPlayerFromRune(rune) {
+    // 0 = No Player
+    // 1-6 = Player 1
+    // 7-12 = Player 2
+    // >12 = No Player (0)
+    if (rune < 1 || rune > 12) return 0;
+    if (rune >= 1 && rune <= 6) return 1;
+    if (rune >= 7 && rune <= 12) return 2;
+}
+function setRuneFromPlayer(rune, player) {
+    // 1-6 Input
+    // 1-6 Player 1
+    // 7-12 Player 2
+    // 0 || >13 No Player (0)
+    if (rune === 0) return 0;
+    if (player === 1) return rune;
+    if (player === 2) return rune + 6;
+    if (player === 0) return rune + 12;
+}
+function getRuneFromPlayerrune(rune) {
+    return (rune + 5) % 6 + 1
+}
+// const childs = getChilds(board, 1);
+// childs.forEach(c => printBoardWithCoords(c))
+isLegal(board, 1)
+function getMovesMapping() {
+    // 1 - Blocker
+    // 2 - Circle
+    // 3 - Cross
+    // 4 - Square
+    // 5 - Triangle
+    // 6 - Star
+    blockerMoves = [
+        { path: [[-1, -1]], rune: 1 },
+        { path: [[-1, 0]], rune: 1 },
+        { path: [[-1, 1]], rune: 1 },
+        { path: [[0, -1]], rune: 1 },
+        { path: [[0, 1]], rune: 1 },
+        { path: [[1, -1]], rune: 1 },
+        { path: [[1, 0]], rune: 1 },
+        { path: [[1, 1]], rune: 1 },
+    ]
+    const movesList = {};
+    const runeIds = [2, 3, 4, 5, 6]
+    runeIds.forEach(runeId => {
+        const runeBasicMoves = basicMoves[runeId];
+        movesList[runeId] = [...blockerMoves];
+        runeIds.forEach(runeIdlower => {
+            if (runeId !== runeIdlower) {
+                runeBasicMoves.forEach(rbm => movesList[runeId].push({ path: rbm, rune: runeIdlower }));
+            }
+        })
+    })
+    return movesList
+}
+
+function printMoves(moves) {
+    moves.forEach(m => console.log(`${m.rune} | ${m.path.map(p => `(${p[0]} ${p[1]})`)}`))
+}
+
 function printBoardWithCoords(board) {
     let out = "     ";
     for (let x = 1; x <= 13; x++) out += x.toString().padStart(2, " ") + " ";
@@ -77,58 +284,11 @@ function printBoardWithCoords(board) {
     for (let y = 1; y <= 13; y++) {
         out += y.toString().padStart(2, " ") + " | ";
         for (let x = 1; x <= 13; x++) {
-            out += getCell(board, x, y).toString(16).padStart(2, " ") + " ";
+            const rune = getCell(board, x, y)
+            const s = rune === 0 ? "*" : rune;
+            out += s.toString(16).padStart(2, " ") + " ";
         }
         out += "\n";
     }
     console.log(out);
 }
-
-function getChilds(board, player) {
-    for (let x = 1; x <= 13; x++) {
-        for (let y = 1; y <= 13; y++) {
-            const cellValue = getCell(board, x, y);
-            // filter player cells
-            if (cellValue < 1 || cellValue > 12 || ((player === 0) !== (cellValue <= 6))) continue;
-            const rune = runes[(cellValue + 5) % 6 + 1];
-            console.log(player, rune.name)
-            const targets = getTargets(x, y, rune);
-            console.log(targets)
-
-        }
-    }
-}
-function hashPath(path) {
-    return path.map(pos => `${pos.x},${pos.y}`).join("|");
-}
-function getTargets(x, y, rune) {
-    const paths = rune.range;
-    const targets = [];
-    const hash = [];
-    paths.forEach(path => {
-        const mappedPath = path.map(pos => { return { x: x + pos[0], y: y + pos[1] } });
-        for (let i = 0; i < path.length; i++) {
-            const subpath = i === 0 ? mappedPath : mappedPath.slice(0, -i);
-            if (subpath.every(pos => getCell(board, pos.x, pos.y) === 0) && !hash.includes(hashPath(subpath))) {
-                targets.push({
-                    pos: subpath[subpath.length - 1],
-                    paths: subpath.slice(0, -1)
-                });
-                hash.push(hashPath(subpath));
-            }
-        }
-        // for (let i = 0; i < path.length; i++) {
-        //     const subpath = i === 0 ? mappedPath : mappedPath.slice(0, -i);
-        //     const lastPos = subpath[subpath.length - 1];
-        //     const behindPath = subpath.slice(0, -1);
-        //     if (isPlaceable(runes, lastPos, rune.player) && behindPath.every(pos => isEmpty(runes, pos))) {
-        //         targets.push({
-        //             pos: lastPos,
-        //             paths: behindPath
-        //         });
-        //     }
-        // }
-    })
-    return targets;
-}
-getChilds(board, 0);
