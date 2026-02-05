@@ -263,7 +263,7 @@ function getMovesMapping() {
     // 4 - Square
     // 5 - Triangle
     // 6 - Star
-    blockerMoves = [
+    const blockerMoves = [
         { path: [[-1, -1]], rune: 1 },
         { path: [[-1, 0]], rune: 1 },
         { path: [[-1, 1]], rune: 1 },
@@ -307,9 +307,52 @@ function printBoardWithCoords(board) {
     console.log(out);
 }
 
-const childs = getChilds(board, 1);
-childs.forEach((c, i) => {
-    console.log(i);
-    printBoardWithCoords(c)
+// const childs = getChilds(board, 1);
+// childs.forEach((c, i) => {
+//     console.log(i);
+//     printBoardWithCoords(c)
+// }
+// )
+
+function getCompleteRuneMap() {
+    const movesList = new Map();
+    const runeIds = [2, 3, 4, 5, 6];
+    const blockerMoves = [
+        { path: [[-1, -1]], rune: 1 },
+        { path: [[-1, 0]], rune: 1 },
+        { path: [[-1, 1]], rune: 1 },
+        { path: [[0, -1]], rune: 1 },
+        { path: [[0, 1]], rune: 1 },
+        { path: [[1, -1]], rune: 1 },
+        { path: [[1, 0]], rune: 1 },
+        { path: [[1, 1]], rune: 1 },
+    ]
+    for (let x = 1; x <= 13; x++) {
+        for (let y = 1; y <= 13; y++) {
+            runeIds.forEach(runeId => {
+                const runeBasicMoves = basicMoves[runeId];
+                const key = `${x.toString().padStart(2, '0')}${y.toString().padStart(2, '0')}${runeId}`
+                const shifted_blocker = blockerMoves.map(m => ({ path: m.path.map(p => [x + p[0], y + p[1]]), rune: m.rune }));
+                const shifted_rune = runeBasicMoves.map(m => m.map(p => [x + p[0], y + p[1]]));
+                movesList.set(key, [...shifted_blocker])
+                runeIds.forEach(runeIdlower => {
+                    if (runeId !== runeIdlower) {
+                        shifted_rune.forEach(rbm => {
+                            movesList.get(key).push({ path: rbm, rune: runeIdlower });
+                        });
+                    }
+                })
+            })
+        }
+    }
+    return movesList;
 }
-)
+function printMovesList(movesList) {
+    // console.log(movesList['07073'][8])
+    for (const [runeId, moves] of Object.entries(movesList)) {
+        const serializedMoves = moves.map(m => `${runeId} -> ${m.path.join('|')} -> ${m.rune}`)
+        console.log(serializedMoves)
+    }
+}
+const map = getCompleteRuneMap();
+console.log(map.get('07073')[0])
